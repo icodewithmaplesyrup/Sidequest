@@ -1,0 +1,3082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidequest — Prototype v7</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Apple Sign-In -->
+<script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
+<style>
+  :root {
+    --brand:        #D85A30;
+    --brand-soft:   #FAECE7;
+    --brand-dark:   #A83C18;
+    --xp-gold:      #E8A020;
+    --xp-gold-lt:   #FDE68A;
+    --xp-gold-dark: #92400e;
+    --green:        #3B7D11;
+    --green-lt:     #EAF3DE;
+    --blue-lt:      #E6F1FB;
+    --blue-mid:     #185FA5;
+    --red:          #A32D2D;
+
+    --bg:           #ffffff;
+    --bg2:          #f4f4f5;
+    --bg3:          #e4e4e7;
+    --border2:      #e4e4e7;
+    --border3:      #f0f0f2;
+    --text1:        #18181b;
+    --text2:        #71717a;
+    --text3:        #a1a1aa;
+
+    --font-d: 'Syne', sans-serif;
+    --font-b: 'DM Sans', sans-serif;
+    --r-card: 16px;
+    --r-btn:  12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 0 40px;
+    background: #e8e8ec;
+    min-height: 100vh;
+    font-family: var(--font-b);
+  }
+
+  /* ── DEBUG BAR ── */
+  .debug-bar {
+    display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; justify-content: center;
+  }
+  .dbg-btn {
+    border: 1.5px solid var(--border2); border-radius: 20px;
+    padding: 5px 14px; font-size: 12px; font-family: var(--font-b);
+    cursor: pointer; background: #fff; color: var(--text2);
+    transition: all .15s;
+  }
+  .dbg-btn:hover { background: var(--bg2); }
+  .dbg-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+  /* ── PHONE SHELL ── */
+  .phone {
+    width: 375px;
+    height: 780px;
+    background: var(--bg);
+    border: 9px solid #111;
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 56px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+  /* notch */
+  .phone::before {
+    content: '';
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 28px;
+    background: #111;
+    border-radius: 0 0 18px 18px;
+    z-index: 999;
+  }
+
+  /* ── SCREEN SYSTEM ── */
+  .screen { display: none; flex-direction: column; height: 100%; }
+  .screen.active { display: flex; }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    padding: 32px 20px 6px;
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative; z-index: 10; flex-shrink: 0;
+  }
+  .status-bar span { font-size: 11px; font-weight: 500; color: var(--text2); }
+  .status-bar .wordmark {
+    font-family: var(--font-d); font-size: 13px; font-weight: 800;
+    color: var(--text1); letter-spacing: 0.06em;
+  }
+  .status-bar.dark span { color: rgba(255,255,255,0.75); }
+  .status-bar.dark .wordmark { color: #fff; }
+
+  /* ── SCREEN HEADER ── */
+  .screen-header {
+    padding: 4px 20px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0; position: relative; z-index: 10;
+  }
+  .screen-title {
+    font-family: var(--font-d); font-size: 22px; font-weight: 800;
+    color: var(--text1); letter-spacing: -0.4px;
+  }
+
+  /* ── NAV BAR ── */
+  .nav-bar {
+    padding: 10px 16px 20px;
+    display: flex; justify-content: space-around; align-items: center;
+    border-top: 0.5px solid var(--border3);
+    background: var(--bg);
+    position: relative; z-index: 10; flex-shrink: 0;
+  }
+  .nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    cursor: pointer; padding: 5px 10px; border-radius: 12px;
+    border: none; background: none; transition: background .15s;
+  }
+  .nav-item.active { background: var(--bg2); }
+  .nav-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+  .nav-icon svg { width: 20px; height: 20px; stroke: var(--text3); fill: none; stroke-width: 1.6; transition: stroke .15s; }
+  .nav-item.active .nav-icon svg { stroke: var(--brand); }
+  .nav-label { font-size: 10px; color: var(--text3); font-weight: 500; transition: color .15s; }
+  .nav-item.active .nav-label { color: var(--brand); font-weight: 700; }
+
+  /* ── SCROLL CONTENT ── */
+  .content { flex: 1; overflow-y: auto; scrollbar-width: none; position: relative; }
+  .content::-webkit-scrollbar { display: none; }
+
+  /* ── PILLS & BADGES ── */
+  .xp-pill {
+    background: var(--xp-gold-lt); color: var(--xp-gold-dark);
+    font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .xp-badge {
+    background: var(--xp-gold-lt); color: var(--xp-gold-dark);
+    font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 8px; white-space: nowrap;
+  }
+  .tag-chip {
+    background: var(--bg2); color: var(--text2);
+    font-size: 10px; font-weight: 500;
+    padding: 2px 8px; border-radius: 20px;
+    display: inline-block;
+  }
+
+  /* ── FILTER ROW ── */
+  .filter-row {
+    display: flex; gap: 7px; padding: 0 16px 12px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-chip {
+    white-space: nowrap;
+    border: 0.5px solid var(--border2); border-radius: 20px;
+    padding: 5px 13px; font-size: 12px; color: var(--text2);
+    cursor: pointer; background: none; font-family: var(--font-b);
+    transition: all .15s;
+  }
+  .filter-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+  /* ── QUEST CARD ── */
+  .quest-card {
+    margin: 0 14px 12px;
+    border: 0.5px solid var(--border3);
+    border-radius: var(--r-card); overflow: hidden;
+    background: var(--bg);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    transition: transform .12s;
+  }
+  .quest-video-thumb {
+    width: 100%; height: 156px;
+    display: flex; gap: 2px; background: #161616;
+    position: relative;
+  }
+  .cam-half {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .cam-half.front { background: #1e1414; }
+  .cam-half.back  { background: #141e14; }
+  .cam-label {
+    position: absolute; top: 7px; left: 9px;
+    background: rgba(0,0,0,0.5); color: #fff;
+    font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 5px;
+  }
+  .cam-face {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cam-face svg { width: 18px; height: 18px; stroke: rgba(255,255,255,0.3); fill: none; stroke-width: 1.5; }
+  .play-btn {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .play-circle {
+    width: 32px; height: 32px; background: rgba(255,255,255,0.18);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .play-circle svg { width: 14px; height: 14px; fill: #fff; stroke: none; margin-left: 2px; }
+  .do-btn-overlay {
+    position: absolute; bottom: 10px; right: 10px;
+    background: var(--brand); color: #fff;
+    font-size: 11px; font-weight: 700; font-family: var(--font-d);
+    padding: 5px 12px; border-radius: 8px; border: none; cursor: pointer;
+    letter-spacing: 0.03em;
+    box-shadow: 0 2px 8px rgba(216,90,48,0.4);
+    transition: transform .1s;
+  }
+  .do-btn-overlay:active { transform: scale(0.96); }
+  .quest-meta { padding: 11px 13px 10px; }
+  .quest-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 7px; }
+  .quest-title { font-family: var(--font-d); font-size: 13px; font-weight: 700; color: var(--text1); line-height: 1.35; flex: 1; padding-right: 8px; }
+  .quest-bottom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .quest-user { display: flex; align-items: center; gap: 5px; }
+  .user-avatar {
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; font-weight: 700;
+  }
+  .av-coral  { background: #F5C4B3; color: #993C1D; }
+  .av-blue   { background: #B5D4F4; color: #185FA5; }
+  .av-teal   { background: #9FE1CB; color: #0F6E56; }
+  .av-purple { background: #CECBF6; color: #3C3489; }
+  .user-name { font-size: 11px; color: var(--text2); }
+  .quest-loc { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 3px; margin-left: auto; }
+  .quest-loc svg { width: 10px; height: 10px; stroke: var(--text3); fill: none; stroke-width: 2; }
+
+  .section-label {
+    font-family: var(--font-d); font-size: 10px; font-weight: 800;
+    color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0 18px 8px;
+  }
+
+  /* ── BUTTONS ── */
+  .primary-btn {
+    background: var(--brand); color: #fff;
+    border: none; border-radius: var(--r-btn);
+    padding: 14px; font-size: 15px; font-weight: 700;
+    font-family: var(--font-d); cursor: pointer; width: 100%;
+    transition: opacity .15s;
+    letter-spacing: 0.02em;
+  }
+  .primary-btn:disabled { opacity: 0.4; cursor: default; }
+  .secondary-btn {
+    background: none; color: var(--text2);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--r-btn); padding: 12px;
+    font-size: 14px; font-family: var(--font-b);
+    cursor: pointer; width: 100%;
+  }
+  .back-btn {
+    display: flex; align-items: center; gap: 5px;
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; color: var(--text2); font-family: var(--font-b);
+    padding: 0;
+  }
+  .back-btn svg { width: 16px; height: 16px; stroke: var(--text2); fill: none; stroke-width: 2; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: absolute; bottom: 88px; left: 14px; right: 14px;
+    background: #111; color: #fff;
+    padding: 12px 16px; border-radius: 12px;
+    font-size: 13px; font-weight: 500; font-family: var(--font-b);
+    display: none; z-index: 200; text-align: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    animation: toastIn .2s ease;
+  }
+  @keyframes toastIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+
+  /* ══════════════════════════════════════
+     SCREEN: FEED
+  ══════════════════════════════════════ */
+
+  /* ══════════════════════════════════════
+     SCREEN: MAP
+  ══════════════════════════════════════ */
+  #screen-map { background: #1a1a2e; }
+  #screen-map .status-bar { background: transparent; }
+  #screen-map .status-bar span { color: rgba(255,255,255,0.75); }
+  #screen-map .status-bar .wordmark { color: #fff; }
+  #screen-map .screen-header { background: transparent; }
+  #screen-map .screen-title { color: #fff; }
+
+  .map-container {
+    flex: 1; position: relative; overflow: hidden;
+  }
+  #leaflet-map {
+    width: 100%; height: 100%;
+    background: #2c3e50;
+  }
+
+  /* custom leaflet pin override */
+  .leaflet-container { font-family: var(--font-b); }
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px !important;
+    padding: 0 !important;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+    border: none !important;
+  }
+  .leaflet-popup-content { margin: 0 !important; width: auto !important; }
+  .leaflet-popup-tip { display: none; }
+  .leaflet-popup-close-button { color: var(--text2) !important; right: 8px !important; top: 8px !important; font-size: 16px !important; }
+
+  .map-popup {
+    width: 200px; padding: 12px 14px;
+  }
+  .map-popup-title { font-family: var(--font-d); font-size: 13px; font-weight: 700; color: var(--text1); margin-bottom: 4px; line-height: 1.3; }
+  .map-popup-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .map-popup-xp { background: var(--xp-gold-lt); color: var(--xp-gold-dark); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
+  .map-popup-completions { font-size: 11px; color: var(--text2); }
+  .map-popup-do {
+    width: 100%; background: var(--brand); color: #fff;
+    border: none; border-radius: 8px; padding: 8px;
+    font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-d);
+  }
+
+  .map-filter-bar {
+    position: absolute; top: 10px; left: 10px; right: 10px;
+    z-index: 500;
+    display: flex; gap: 6px;
+  }
+  .map-search {
+    flex: 1; background: rgba(255,255,255,0.95);
+    border: none; border-radius: 10px;
+    padding: 9px 13px; font-size: 13px; font-family: var(--font-b);
+    color: var(--text1); outline: none;
+    backdrop-filter: blur(8px);
+  }
+  .map-legend {
+    position: absolute; bottom: 10px; left: 10px; z-index: 500;
+    background: rgba(255,255,255,0.92); border-radius: 10px;
+    padding: 8px 12px; backdrop-filter: blur(8px);
+  }
+  .map-legend-title { font-size: 10px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+  .map-legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 10px; color: var(--text2); }
+  .legend-dot { border-radius: 50%; flex-shrink: 0; }
+
+  /* SVG pin custom markers */
+  .quest-pin {
+    background: white; border-radius: 50%; border: 3px solid var(--brand);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: var(--brand); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  .quest-pin { position: relative; }
+  .tier-easy { border-color: #888; color: #888; }
+  .tier-medium { border-color: var(--brand); color: var(--brand); }
+  .tier-hard { border-color: #000; color: #000; }
+  .tier-legend { border-color: var(--xp-gold); color: var(--xp-gold); background: #000; }
+
+  /* Trailblazer Specific Style */
+  .quest-pin.trailblazer {
+    border: 3px solid var(--xp-gold);
+    box-shadow: 0 0 12px rgba(232, 160, 32, 0.5);
+    z-index: 1000 !important;
+  }
+
+  /* ══════════════════════════════════════
+     SCREEN: SUBMIT
+  ══════════════════════════════════════ */
+  .submit-form { padding: 0 14px 16px; display: flex; flex-direction: column; gap: 13px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-label {
+    font-size: 10px; font-weight: 800; color: var(--text2);
+    letter-spacing: 0.1em; text-transform: uppercase; font-family: var(--font-d);
+  }
+  .form-input {
+    border: 0.5px solid var(--border2); border-radius: 10px;
+    padding: 10px 12px; font-size: 14px; font-family: var(--font-b);
+    color: var(--text1); background: var(--bg);
+    resize: none; outline: none; transition: border-color .15s;
+    width: 100%;
+  }
+  .form-input:focus { border-color: var(--brand); }
+  .diff-row { display: flex; gap: 6px; }
+  .diff-chip {
+    flex: 1; padding: 7px 4px; border-radius: 8px;
+    font-size: 11px; font-weight: 600; font-family: var(--font-b);
+    border: 0.5px solid var(--border2); background: none;
+    color: var(--text2); cursor: pointer; transition: all .15s;
+    text-align: center;
+  }
+  .diff-chip.selected { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 700; }
+  .diff-chip[data-xp="100"].selected  { background: #2D9C6E; border-color: #2D9C6E; }
+  .diff-chip[data-xp="500"].selected  { background: #D85A30; border-color: #D85A30; }
+  .diff-chip[data-xp="1000"].selected { background: #7C3AED; border-color: #7C3AED; }
+  .loc-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg2); border-radius: 10px; padding: 10px 12px;
+    font-size: 13px; color: var(--text2);
+  }
+  .loc-row svg { width: 14px; height: 14px; stroke: var(--brand); fill: none; stroke-width: 2; flex-shrink: 0; }
+  .record-zone {
+    border: 1.5px dashed var(--border2); border-radius: var(--r-card);
+    height: 116px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 7px;
+    cursor: pointer; background: var(--bg2); transition: all .15s;
+  }
+  .record-zone.recorded { border-style: solid; border-color: #4C9A1A; background: var(--green-lt); }
+  .record-icon {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--brand-soft); display: flex; align-items: center; justify-content: center;
+  }
+  .record-icon svg { width: 20px; height: 20px; stroke: var(--brand); fill: none; stroke-width: 1.5; }
+  .record-icon.done { background: #C0DD97; }
+  .record-icon.done svg { stroke: #3B6D11; }
+  .record-text { font-size: 13px; font-weight: 500; color: var(--text2); }
+  .record-sub  { font-size: 11px; color: var(--text3); text-align: center; padding: 0 20px; }
+  .info-note {
+    background: var(--blue-lt); border-radius: 10px;
+    padding: 8px 12px; display: flex; gap: 8px; align-items: flex-start;
+  }
+  .info-note svg { width: 13px; height: 13px; stroke: var(--blue-mid); fill: none; stroke-width: 2; flex-shrink: 0; margin-top: 1px; }
+  .info-note p { font-size: 11px; color: var(--blue-mid); line-height: 1.5; }
+  .xp-estimate {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--xp-gold-lt); border-radius: 10px; padding: 10px 14px;
+  }
+  .xp-estimate span { font-size: 12px; color: var(--xp-gold-dark); font-weight: 500; }
+  .xp-estimate strong { font-family: var(--font-d); font-size: 16px; color: var(--xp-gold-dark); font-weight: 800; }
+
+  /* ══════════════════════════════════════
+     SCREEN: CAMERA
+  ══════════════════════════════════════ */
+  #screen-camera { background: #0c0c0c; }
+  .recording-progress {
+    height: 3px; background: rgba(255,255,255,0.1);
+    position: absolute; top: 0; left: 0; right: 0; z-index: 50;
+  }
+  .recording-bar { height: 100%; background: #f87171; width: 0; transition: width .1s linear; border-radius: 0 2px 2px 0; }
+  .cam-top-bar {
+    padding: 32px 16px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative; z-index: 10;
+  }
+  .cam-action-btn {
+    background: rgba(255,255,255,0.12); border: none;
+    border-radius: 8px; padding: 6px 11px;
+    cursor: pointer; color: #fff; font-size: 12px; font-family: var(--font-b);
+  }
+  .cam-wordmark { font-family: var(--font-d); font-size: 12px; font-weight: 800; color: #fff; letter-spacing: 0.08em; }
+  .cam-split { display: flex; flex-direction: column; flex: 1; }
+  .cam-pane {
+    flex: 1; position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cam-pane.top-pane { background: #141410; border-bottom: 1.5px solid #0c0c0c; }
+  .cam-pane.bot-pane { background: #101410; }
+  .cam-pane-label {
+    position: absolute; top: 9px; left: 11px;
+    background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.85);
+    font-size: 9px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+  }
+  .cam-pane-badge {
+    position: absolute; bottom: 9px; right: 9px;
+    background: rgba(0,0,0,0.4); color: rgba(255,255,255,0.6);
+    font-size: 9px; padding: 2px 6px; border-radius: 4px;
+  }
+  .grid-hint {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 1.2px solid rgba(255,255,255,0.12); opacity: 0.8;
+  }
+  .record-controls {
+    padding: 14px 20px 22px; background: #0c0c0c;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .timer-ring {
+    width: 60px; height: 60px; position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .timer-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .timer-num { font-size: 17px; font-weight: 700; color: #fff; font-family: var(--font-d); position: relative; z-index: 1; }
+  .timer-num.running { color: #f87171; }
+  .shutter-btn {
+    width: 66px; height: 66px; border-radius: 50%; background: none;
+    border: 3px solid rgba(255,255,255,0.9);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0; transition: transform .1s;
+  }
+  .shutter-btn:active { transform: scale(0.94); }
+  .shutter-inner {
+    width: 50px; height: 50px; border-radius: 50%;
+    background: #fff; transition: all .15s;
+  }
+  .shutter-btn.recording .shutter-inner {
+    border-radius: 8px; background: #f87171; width: 28px; height: 28px;
+  }
+  .cam-side-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(255,255,255,0.1); border: none;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .cam-side-btn svg { width: 18px; height: 18px; stroke: #fff; fill: none; stroke-width: 1.5; }
+
+  /* ══════════════════════════════════════
+     SCREEN: PROFILE
+  ══════════════════════════════════════ */
+  .profile-bg-layer {
+    position: absolute; top: 0; left: 0; right: 0; height: 200px;
+    z-index: 0; transition: all .3s; border-radius: 0 0 24px 24px;
+  }
+  .bg-obsidian { background: linear-gradient(135deg, #1f1c2c, #928dab); }
+  .bg-sunset   { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+  .bg-forest   { background: linear-gradient(135deg, #134e5e, #71b280); }
+  .bg-midnight { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); }
+
+  .profile-hero {
+    padding: 18px 18px 12px;
+    display: flex; align-items: center; gap: 13px;
+    position: relative; z-index: 1;
+  }
+  .profile-avatar-wrap { position: relative; display: inline-block; }
+  .profile-avatar {
+    width: 62px; height: 62px; border-radius: 50%;
+    background: #F5C4B3; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-d); font-size: 20px; font-weight: 800; color: #993C1D;
+    transition: all .3s; border: 2.5px solid var(--bg);
+  }
+  .ring-gold   { box-shadow: 0 0 0 3px #fbbf24, 0 0 12px rgba(251,191,36,0.45); }
+  .ring-neon   { box-shadow: 0 0 0 3px #10b981, 0 0 14px rgba(16,185,129,0.7); }
+  .ring-royal  { box-shadow: 0 0 0 3px #7C3AED, 0 0 14px rgba(124,58,237,0.6); }
+
+  .profile-info { flex: 1; }
+  .profile-name {
+    font-family: var(--font-d); font-size: 18px; font-weight: 800;
+    color: var(--text1); transition: color .3s;
+  }
+  .profile-name.light { color: #fff; }
+  .level-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .level-badge { background: var(--brand); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+  .level-title { font-size: 12px; font-weight: 700; transition: color .3s; }
+  .level-title.light { color: rgba(255,255,255,0.75) !important; }
+
+  .edit-btn {
+    background: rgba(255,255,255,0.85); border: 1px solid var(--border2);
+    padding: 6px 12px; border-radius: 10px; font-size: 11px; font-weight: 600;
+    cursor: pointer; backdrop-filter: blur(4px); font-family: var(--font-b);
+    transition: background .15s;
+  }
+
+  .xp-bar-wrap { margin: 0 18px 14px; position: relative; z-index: 1; }
+  .xp-bar-labels { display: flex; justify-content: space-between; margin-bottom: 5px; }
+  .xp-bar-labels span { font-size: 11px; font-weight: 700; color: var(--text2); }
+  .xp-bar-bg { height: 7px; background: var(--bg2); border-radius: 4px; overflow: hidden; }
+  .xp-bar-fill { height: 100%; background: var(--xp-gold); border-radius: 4px; transition: width .5s ease; }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 7px; padding: 0 14px 14px; position: relative; z-index: 1;
+  }
+  .stat-card { background: var(--bg2); border-radius: 12px; padding: 9px 10px; text-align: center; }
+  .stat-val { font-family: var(--font-d); font-size: 17px; font-weight: 800; color: var(--text1); }
+  .stat-lbl { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+  .royalty-banner {
+    margin: 0 14px 12px; background: var(--xp-gold-lt);
+    border-radius: 12px; padding: 10px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative; z-index: 1;
+  }
+  .royalty-left { display: flex; flex-direction: column; gap: 2px; }
+  .royalty-label { font-size: 10px; font-weight: 700; color: var(--xp-gold-dark); text-transform: uppercase; letter-spacing: 0.08em; }
+  .royalty-val { font-family: var(--font-d); font-size: 16px; font-weight: 800; color: var(--xp-gold-dark); }
+  .royalty-sub { font-size: 10px; color: #a16207; }
+  .royalty-icon { font-size: 24px; }
+
+  .tab-row {
+    display: flex; border-bottom: 0.5px solid var(--border3);
+    margin: 0 14px 10px; position: relative; z-index: 1;
+  }
+  .tab-btn {
+    flex: 1; padding: 9px; background: none; border: none;
+    font-size: 12px; font-weight: 700; font-family: var(--font-b);
+    color: var(--text2); cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -0.5px;
+    transition: color .15s;
+  }
+  .tab-btn.active { color: var(--brand); border-bottom-color: var(--brand); }
+
+  .mini-quest-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 0.5px solid var(--border3);
+  }
+  .mini-thumb {
+    width: 48px; height: 36px; border-radius: 7px; overflow: hidden;
+    flex-shrink: 0;
+  }
+  .mini-thumb-dual { width: 100%; height: 100%; display: flex; gap: 1px; }
+  .mini-half { flex: 1; height: 100%; }
+  .mini-half.f { background: #1e1414; }
+  .mini-half.b { background: #141e14; }
+  .mini-info { flex: 1; }
+  .mini-title { font-size: 12px; font-weight: 600; color: var(--text1); line-height: 1.3; }
+  .mini-sub   { font-size: 10px; color: var(--text3); margin-top: 2px; }
+  .mini-xp    { font-size: 12px; font-weight: 700; color: var(--xp-gold); font-family: var(--font-d); white-space: nowrap; }
+
+  .edit-profile-form { padding: 0 14px 14px; position: relative; z-index: 1; }
+
+  /* Cosmetics */
+  .cosmetics-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; padding: 0 14px 16px;
+  }
+  .cosmetic-card {
+    border: 1px solid var(--border2); border-radius: 12px;
+    padding: 12px; display: flex; flex-direction: column;
+    align-items: center; text-align: center; background: var(--bg);
+    transition: opacity .2s;
+  }
+  .cosmetic-card.locked { opacity: 0.55; filter: grayscale(0.6); }
+  .cosmetic-preview { width: 44px; height: 44px; border-radius: 50%; margin-bottom: 7px; }
+  .cosmetic-name { font-size: 12px; font-weight: 700; color: var(--text1); margin-bottom: 1px; }
+  .cosmetic-type { font-size: 10px; color: var(--text3); margin-bottom: 7px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .equip-btn { width: 100%; padding: 6px; border-radius: 8px; font-size: 11px; font-weight: 700; border: none; cursor: pointer; font-family: var(--font-b); }
+  .equip-btn.locked   { background: var(--bg2); color: var(--text3); cursor: not-allowed; }
+  .equip-btn.equip    { background: var(--brand-soft); color: var(--brand); }
+  .equip-btn.equipped { background: var(--brand); color: #fff; }
+
+  /* ══════════════════════════════════════
+     SCREEN: MOD REVIEW
+  ══════════════════════════════════════ */
+  .mod-banner {
+    margin: 0 14px 10px; background: #1a1a2e; border-radius: 12px;
+    padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .mod-banner svg { width: 16px; height: 16px; stroke: #a78bfa; fill: none; stroke-width: 2; flex-shrink: 0; }
+  .mod-banner p { font-size: 11px; color: #c4b5fd; line-height: 1.45; }
+  .mod-banner strong { color: #e9d5ff; }
+
+  .review-card {
+    margin: 0 14px 10px; border: 0.5px solid var(--border2);
+    border-radius: var(--r-card); overflow: hidden; background: var(--bg);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .review-header {
+    padding: 10px 13px 8px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    border-bottom: 0.5px solid var(--border3);
+  }
+  .review-username { font-size: 13px; font-weight: 600; color: var(--text1); }
+  .review-meta-sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .review-status { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .status-pending  { background: #FEF3C7; color: #92400e; }
+  .status-approved { background: #DCFCE7; color: #166534; }
+  .status-rejected { background: #FEE2E2; color: #991b1b; }
+  .status-moreXP   { background: #FEF3C7; color: #92400e; }
+
+  .review-body {
+    padding: 10px 13px; display: flex; gap: 10px; align-items: flex-start;
+  }
+  .review-vid {
+    width: 72px; height: 54px; border-radius: 8px; overflow: hidden;
+    flex-shrink: 0; display: flex; gap: 1px;
+  }
+  .rv-half { flex: 1; }
+  .rv-front { background: #1e1414; }
+  .rv-back  { background: #141e14; }
+  .review-text { flex: 1; }
+  .review-title { font-size: 13px; font-weight: 600; color: var(--text1); line-height: 1.35; margin-bottom: 5px; }
+  .review-detail { font-size: 11px; color: var(--text2); }
+  .xp-proposed { color: var(--xp-gold-dark); font-weight: 700; }
+
+  .vote-row { display: flex; gap: 6px; padding: 0 13px 12px; }
+  .vote-btn {
+    flex: 1; padding: 7px 4px; border-radius: 9px;
+    font-size: 11px; font-weight: 700; font-family: var(--font-b);
+    cursor: pointer; border: none; transition: all .15s;
+  }
+  .vote-approve { background: var(--green-lt); color: var(--green); }
+  .vote-more-xp { background: var(--xp-gold-lt); color: var(--xp-gold-dark); }
+  .vote-reject  { background: #FEE2E2; color: var(--red); }
+  .vote-btn:active { transform: scale(0.96); }
+
+  .review-result {
+    padding: 8px 13px 12px;
+    border-top: 0.5px solid var(--border3);
+    font-size: 11px; color: var(--text2);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .review-result svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+  /* ══════════════════════════════════════
+     FAB
+  ══════════════════════════════════════ */
+  .fab {
+    position: absolute; bottom: 76px; right: 16px;
+    width: 50px; height: 50px; background: var(--brand);
+    border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: none;
+    box-shadow: 0 4px 14px rgba(216,90,48,0.4);
+    z-index: 50; transition: transform .12s;
+  }
+  .fab:active { transform: scale(0.93); }
+  .fab svg { width: 20px; height: 20px; stroke: #fff; fill: none; stroke-width: 2.2; }
+
+  /* ══════════════════════════════════════
+     ONBOARDING TIP
+  ══════════════════════════════════════ */
+  .onboarding-tip {
+    margin: 0 14px 10px;
+    background: var(--blue-lt); border-radius: 10px;
+    padding: 9px 13px; font-size: 11px; color: var(--blue-mid); line-height: 1.5;
+  }
+  .onboarding-tip strong { color: #1050a0; }
+
+  /* ══════════════════════════════════════
+     SCREEN: AUTH (Sign In / Sign Up)
+  ══════════════════════════════════════ */
+  #screen-auth {
+    background: var(--bg);
+  }
+  .auth-top {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 0 28px;
+  }
+  .auth-logo-wrap {
+    width: 72px; height: 72px; border-radius: 22px;
+    background: var(--brand); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(216,90,48,0.35);
+  }
+  .auth-logo-wrap svg { width: 38px; height: 38px; stroke: #fff; fill: none; stroke-width: 1.8; }
+  .auth-wordmark {
+    font-family: var(--font-d); font-size: 28px; font-weight: 800;
+    color: var(--text1); letter-spacing: 0.06em; margin-bottom: 8px;
+  }
+  .auth-tagline {
+    font-size: 13px; color: var(--text2); text-align: center;
+    line-height: 1.55; max-width: 240px; margin-bottom: 36px;
+  }
+  .auth-btn-stack {
+    width: 100%; display: flex; flex-direction: column; gap: 10px;
+  }
+  .auth-social-btn {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+    border-radius: 12px; padding: 13px 16px;
+    font-size: 14px; font-weight: 600; font-family: var(--font-b);
+    cursor: pointer; border: none; transition: all .15s; position: relative;
+  }
+  .auth-social-btn:active { transform: scale(0.98); }
+  .auth-social-btn .btn-icon {
+    width: 20px; height: 20px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .auth-social-btn .btn-icon svg { width: 20px; height: 20px; }
+  /* Google */
+  .auth-btn-google {
+    background: #fff; color: #3c4043;
+    border: 1px solid #dadce0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .auth-btn-google:hover { background: #f8f9fa; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+  /* Apple */
+  .auth-btn-apple { background: #000; color: #fff; }
+  .auth-btn-apple:hover { background: #1a1a1a; }
+  /* Email */
+  .auth-btn-email {
+    background: var(--bg2); color: var(--text1);
+    border: 0.5px solid var(--border2);
+  }
+  .auth-divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 4px 0; color: var(--text3); font-size: 12px;
+  }
+  .auth-divider::before, .auth-divider::after {
+    content: ''; flex: 1; height: 0.5px; background: var(--border2);
+  }
+  .auth-bottom {
+    padding: 0 28px 28px; text-align: center;
+  }
+  .auth-terms {
+    font-size: 11px; color: var(--text3); line-height: 1.6;
+  }
+  .auth-terms a { color: var(--brand); text-decoration: none; }
+  .auth-loading-overlay {
+    position: absolute; inset: 0; background: rgba(255,255,255,0.92);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; z-index: 100; backdrop-filter: blur(4px);
+  }
+  .auth-loading-overlay.show { display: flex; }
+  .auth-spinner {
+    width: 36px; height: 36px; border: 3px solid var(--bg3);
+    border-top-color: var(--brand); border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .auth-loading-text { font-size: 13px; color: var(--text2); font-weight: 500; }
+
+  /* ── OAuth Config Overlay ── */
+  .oauth-config-overlay {
+    position: absolute; inset: 0; background: var(--bg);
+    display: none; flex-direction: column;
+    z-index: 200; overflow-y: auto;
+  }
+  .oauth-config-overlay.show { display: flex; }
+  .oauth-config-inner { padding: 28px 20px; flex: 1; }
+  .oauth-config-title {
+    font-family: var(--font-d); font-size: 18px; font-weight: 800;
+    color: var(--text1); margin-bottom: 6px;
+  }
+  .oauth-config-sub {
+    font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 22px;
+  }
+  .oauth-config-sub a { color: var(--brand); text-decoration: none; }
+  .oauth-config-field { margin-bottom: 16px; }
+  .oauth-config-label {
+    font-size: 10px; font-weight: 800; color: var(--text3);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    font-family: var(--font-d); margin-bottom: 5px; display: block;
+  }
+  .oauth-config-input {
+    width: 100%; border: 1px solid var(--border2); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; font-family: monospace;
+    color: var(--text1); background: var(--bg2); outline: none;
+    transition: border-color .15s;
+  }
+  .oauth-config-input:focus { border-color: var(--brand); background: var(--bg); }
+  .oauth-config-hint {
+    font-size: 10px; color: var(--text3); margin-top: 4px; line-height: 1.5;
+  }
+  .oauth-config-btn {
+    width: 100%; background: var(--brand); color: #fff;
+    border: none; border-radius: 12px; padding: 13px;
+    font-size: 14px; font-weight: 700; font-family: var(--font-d);
+    cursor: pointer; margin-top: 6px; letter-spacing: 0.02em;
+  }
+  .oauth-config-skip {
+    width: 100%; background: none; color: var(--text3);
+    border: none; padding: 10px; font-size: 12px; cursor: pointer;
+    font-family: var(--font-b); margin-top: 4px;
+  }
+  .oauth-config-section {
+    background: var(--bg2); border-radius: 12px; padding: 12px 14px;
+    margin-bottom: 16px; border: 0.5px solid var(--border2);
+  }
+  .oauth-config-section-title {
+    font-size: 12px; font-weight: 700; color: var(--text1); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .cfg-step {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--brand);
+    color: #fff; font-size: 10px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  /* ── Email Auth Panel ── */
+  .email-panel {
+    display: none; flex-direction: column; gap: 10px;
+    background: var(--bg2); border-radius: 14px;
+    padding: 16px; margin-top: 2px;
+    border: 0.5px solid var(--border2);
+  }
+  .email-panel.show { display: flex; }
+  .email-panel-title {
+    font-family: var(--font-d); font-size: 13px; font-weight: 800;
+    color: var(--text1); margin-bottom: 2px;
+  }
+  .email-panel-input {
+    border: 1px solid var(--border2); border-radius: 10px;
+    padding: 11px 13px; font-size: 14px; font-family: var(--font-b);
+    color: var(--text1); background: var(--bg); outline: none;
+    transition: border-color .15s; width: 100%;
+  }
+  .email-panel-input:focus { border-color: var(--brand); }
+  .email-panel-input.error { border-color: var(--red); }
+  .email-error-msg { font-size: 11px; color: var(--red); margin-top: -4px; display: none; }
+  .email-error-msg.show { display: block; }
+  .email-mode-toggle {
+    font-size: 11px; color: var(--brand); background: none; border: none;
+    cursor: pointer; font-family: var(--font-b); padding: 0; text-align: left;
+  }
+  .email-submit-btn {
+    background: var(--brand); color: #fff; border: none; border-radius: 10px;
+    padding: 12px; font-size: 14px; font-weight: 700; font-family: var(--font-d);
+    cursor: pointer; letter-spacing: 0.02em; transition: opacity .15s;
+  }
+  .email-submit-btn:disabled { opacity: 0.45; cursor: default; }
+  .email-back-btn {
+    background: none; color: var(--text2); border: none;
+    font-size: 12px; cursor: pointer; font-family: var(--font-b);
+    padding: 0; text-align: center;
+  }
+
+  /* ══════════════════════════════════════
+     SCREEN: SETTINGS
+  ══════════════════════════════════════ */
+  #screen-settings { background: var(--bg2); }
+
+  .settings-section { margin: 0 14px 12px; }
+  .settings-section-label {
+    font-size: 10px; font-weight: 800; color: var(--text3);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 14px 4px 6px;
+    font-family: var(--font-d);
+  }
+  .settings-card {
+    background: var(--bg); border-radius: 14px;
+    overflow: hidden; border: 0.5px solid var(--border3);
+  }
+  .settings-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 14px;
+    cursor: pointer; transition: background .12s;
+    border-bottom: 0.5px solid var(--border3);
+    position: relative;
+  }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row:active { background: var(--bg2); }
+  .settings-row-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .settings-row-icon svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; }
+  .settings-row-icon.brand  { background: var(--brand); }
+  .settings-row-icon.gold   { background: var(--xp-gold); }
+  .settings-row-icon.blue   { background: var(--blue-mid); }
+  .settings-row-icon.gray   { background: var(--text3); }
+  .settings-row-icon.green  { background: var(--green); }
+  .settings-row-icon.dark   { background: var(--text1); }
+  .settings-row-icon.red    { background: var(--red); }
+  .settings-row-content { flex: 1; }
+  .settings-row-label { font-size: 14px; font-weight: 600; color: var(--text1); }
+  .settings-row-sub   { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .settings-row-right {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .settings-chevron svg { width: 14px; height: 14px; stroke: var(--text3); fill: none; stroke-width: 2; }
+  .settings-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 7px;
+    border-radius: 6px;
+  }
+  .badge-connected { background: var(--green-lt); color: var(--green); }
+  .badge-off       { background: var(--bg2); color: var(--text3); }
+  /* Danger zone */
+  .settings-row.danger .settings-row-label { color: var(--red); }
+
+  /* Connected account indicator in settings */
+  .connected-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); flex-shrink: 0;
+  }
+  .disconnected-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text3); flex-shrink: 0;
+  }
+
+  /* Profile summary card inside settings */
+  .settings-profile-card {
+    margin: 16px 14px 4px;
+    background: var(--bg); border-radius: 16px;
+    padding: 16px; display: flex; align-items: center; gap: 14px;
+    border: 0.5px solid var(--border3);
+  }
+  .settings-avatar {
+    width: 54px; height: 54px; border-radius: 50%;
+    background: #F5C4B3; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-d); font-size: 18px; font-weight: 800; color: #993C1D;
+    flex-shrink: 0; border: 2px solid var(--bg);
+    background-size: cover; background-position: center;
+  }
+  .settings-profile-info { flex: 1; }
+  .settings-profile-name { font-family: var(--font-d); font-size: 16px; font-weight: 800; color: var(--text1); }
+  .settings-profile-sub  { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .settings-profile-edit-btn {
+    font-size: 11px; font-weight: 600; color: var(--brand);
+    background: var(--brand-soft); border: none; border-radius: 8px;
+    padding: 6px 12px; cursor: pointer; font-family: var(--font-b);
+  }
+
+  /* ══════════════════════════════════════
+     SCREEN: EDIT PROFILE
+  ══════════════════════════════════════ */
+  #screen-edit-profile { background: var(--bg2); }
+
+  .edit-profile-avatar-section {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 20px 20px;
+    background: var(--bg); border-bottom: 0.5px solid var(--border3);
+    position: relative; z-index: 1;
+  }
+  .edit-avatar-wrap { position: relative; margin-bottom: 10px; }
+  .edit-avatar {
+    width: 76px; height: 76px; border-radius: 50%;
+    background: #F5C4B3; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-d); font-size: 24px; font-weight: 800; color: #993C1D;
+    border: 3px solid var(--bg);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    background-size: cover; background-position: center;
+  }
+  .edit-avatar-cam-badge {
+    position: absolute; bottom: 0; right: 0;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--brand); border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .edit-avatar-cam-badge svg { width: 12px; height: 12px; stroke: #fff; fill: none; stroke-width: 2; }
+  .edit-avatar-name { font-size: 12px; font-weight: 600; color: var(--brand); margin-top: 4px; cursor: pointer; }
+
+  .edit-profile-fields {
+    margin: 14px 14px 0;
+    background: var(--bg); border-radius: 14px; overflow: hidden;
+    border: 0.5px solid var(--border3);
+  }
+  .edit-field-row {
+    padding: 13px 14px;
+    border-bottom: 0.5px solid var(--border3);
+  }
+  .edit-field-row:last-child { border-bottom: none; }
+  .edit-field-label {
+    font-size: 10px; font-weight: 800; color: var(--text3);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    font-family: var(--font-d); margin-bottom: 4px;
+  }
+  .edit-field-input {
+    border: none; outline: none; width: 100%;
+    font-size: 14px; color: var(--text1); background: transparent;
+    font-family: var(--font-b); padding: 0;
+  }
+  .edit-field-input::placeholder { color: var(--text3); }
+  .edit-save-btn {
+    margin: 14px 14px 0;
+    background: var(--brand); color: #fff;
+    border: none; border-radius: 12px;
+    padding: 14px; font-size: 15px; font-weight: 700;
+    font-family: var(--font-d); cursor: pointer; width: calc(100% - 28px);
+    transition: opacity .15s; letter-spacing: 0.02em;
+  }
+  .edit-save-btn:active { opacity: 0.85; }
+
+  /* ══════════════════════════════════════
+     SCREEN: NOTIFICATIONS / PRIVACY
+  ══════════════════════════════════════ */
+  #screen-notifications, #screen-privacy { background: var(--bg2); }
+
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 14px;
+    border-bottom: 0.5px solid var(--border3);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-label-wrap { flex: 1; }
+  .toggle-label { font-size: 14px; font-weight: 600; color: var(--text1); }
+  .toggle-sub   { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .toggle-switch {
+    width: 44px; height: 26px; border-radius: 13px;
+    background: var(--bg3); position: relative;
+    cursor: pointer; border: none; transition: background .2s;
+    flex-shrink: 0;
+  }
+  .toggle-switch.on { background: var(--brand); }
+  .toggle-switch::after {
+    content: ''; position: absolute;
+    top: 3px; left: 3px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; transition: left .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .toggle-switch.on::after { left: 21px; }
+</style>
+</head>
+<body>
+
+<!-- DEBUG CONTROLS -->
+<div class="debug-bar">
+  <button class="dbg-btn" onclick="toggleMod(this)">🛡 Toggle Mod View</button>
+  <button class="dbg-btn" onclick="addMockXP()">⚡ +500 XP</button>
+  <button class="dbg-btn" onclick="addRoyaltyXP()">💰 +Creator Royalty</button>
+  <button class="dbg-btn" onclick="resetXP()">↩ Reset XP</button>
+</div>
+
+<div class="phone" id="phone">
+
+  <!-- ════════════════════ AUTH ════════════════════ -->
+  <div class="screen active" id="screen-auth">
+
+    <!-- Spinner shown during OAuth popup flow -->
+    <div class="auth-loading-overlay" id="authLoadingOverlay">
+      <div class="auth-spinner"></div>
+      <div class="auth-loading-text" id="authLoadingText">Signing in...</div>
+      <button style="margin-top:8px;background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;" onclick="hideAuthLoading()">Cancel</button>
+    </div>
+
+    <!-- OAuth Config Overlay — shown when Client IDs aren't set yet -->
+    <div class="oauth-config-overlay" id="oauthConfigOverlay">
+      <div class="oauth-config-inner">
+        <div style="font-size:22px;margin-bottom:10px;">🔑</div>
+        <div class="oauth-config-title">Configure OAuth</div>
+        <div class="oauth-config-sub">
+          To use real sign-in, paste your OAuth credentials below.
+          These are stored only in <strong>sessionStorage</strong> (never sent anywhere).<br><br>
+          No credentials yet? <a href="#" onclick="skipOAuthConfig()">Skip and use email-only mode</a>.
+        </div>
+
+        <!-- Google -->
+        <div class="oauth-config-section">
+          <div class="oauth-config-section-title">
+            <div class="cfg-step">G</div> Google OAuth 2.0
+          </div>
+          <div class="oauth-config-field">
+            <label class="oauth-config-label">Client ID</label>
+            <input class="oauth-config-input" id="cfgGoogleClientId"
+              placeholder="000000000000-xxxx.apps.googleusercontent.com"
+              value="" />
+            <div class="oauth-config-hint">
+              Get from <strong>console.cloud.google.com</strong> → APIs &amp; Services → Credentials → OAuth 2.0 Client ID.<br>
+              Add <code style="background:var(--bg3);padding:1px 5px;border-radius:4px;">http://localhost</code> and this page's origin to Authorised JavaScript origins.
+            </div>
+          </div>
+        </div>
+
+        <!-- Apple -->
+        <div class="oauth-config-section">
+          <div class="oauth-config-section-title">
+            <div class="cfg-step" style="background:#000;">&#xF8FF;</div> Apple Sign In
+          </div>
+          <div class="oauth-config-field">
+            <label class="oauth-config-label">Services ID</label>
+            <input class="oauth-config-input" id="cfgAppleServiceId"
+              placeholder="com.yourcompany.sidequest"
+              value="" />
+            <div class="oauth-config-hint">
+              Get from <strong>developer.apple.com</strong> → Certificates, IDs &amp; Profiles → Services IDs.<br>
+              Enable "Sign In with Apple" and register this page's domain as a Return URL.
+            </div>
+          </div>
+        </div>
+
+        <button class="oauth-config-btn" onclick="saveOAuthConfig()">Save &amp; Continue</button>
+        <button class="oauth-config-skip" onclick="skipOAuthConfig()">Skip — use email only</button>
+      </div>
+    </div>
+
+    <!-- Main sign-in UI -->
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="auth-top">
+      <div class="auth-logo-wrap">
+        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      </div>
+      <div class="auth-wordmark">SIDEQUEST</div>
+      <div class="auth-tagline">Real-life dares. XP rewards. Dual-cam proof. Go be weird.</div>
+
+      <div class="auth-btn-stack">
+        <!-- Google -->
+        <button class="auth-social-btn auth-btn-google" id="btnGoogle" onclick="signInWithGoogle()">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </span>
+          <span id="btnGoogleLabel">Continue with Google</span>
+        </button>
+
+        <!-- Apple -->
+        <button class="auth-social-btn auth-btn-apple" id="btnApple" onclick="signInWithApple()">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" fill="white">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+            </svg>
+          </span>
+          <span id="btnAppleLabel">Continue with Apple</span>
+        </button>
+
+        <div class="auth-divider" id="authDivider">or</div>
+
+        <!-- Email -->
+        <button class="auth-social-btn auth-btn-email" onclick="toggleEmailPanel()">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" stroke="var(--text2)" fill="none" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+          </span>
+          Continue with Email
+        </button>
+
+        <!-- Email panel (expands inline) -->
+        <div class="email-panel" id="emailPanel">
+          <div class="email-panel-title" id="emailPanelTitle">Sign in with Email</div>
+          <input class="email-panel-input" type="email" id="emailInput"
+            placeholder="you@example.com" autocomplete="email"
+            oninput="clearEmailError()" />
+          <div class="email-error-msg" id="emailErrorMsg"></div>
+          <input class="email-panel-input" type="password" id="passwordInput"
+            placeholder="Password" autocomplete="current-password"
+            oninput="clearEmailError()" />
+          <div class="email-error-msg" id="passwordErrorMsg"></div>
+          <!-- Sign Up extras (hidden by default) -->
+          <input class="email-panel-input" type="text" id="usernameInput"
+            placeholder="Username (e.g. adventurer42)"
+            style="display:none;" />
+          <button class="email-submit-btn" id="emailSubmitBtn" onclick="submitEmailAuth()">Sign In</button>
+          <button class="email-mode-toggle" id="emailModeToggle" onclick="toggleEmailMode()">
+            Don't have an account? <strong>Sign up</strong>
+          </button>
+          <button class="email-back-btn" onclick="toggleEmailPanel()">← Back to sign-in options</button>
+        </div>
+
+        <!-- Configure OAuth link -->
+        <div style="text-align:center;margin-top:8px;">
+          <button style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;font-family:var(--font-b);" onclick="showOAuthConfig()">
+            ⚙ Configure Google / Apple OAuth
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-bottom">
+      <p class="auth-terms">By continuing you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></p>
+    </div>
+  </div>
+
+  <!-- ════════════════════ FEED ════════════════════ -->
+  <div class="screen" id="screen-feed">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header">
+      <span class="screen-title">Feed</span>
+      <div class="xp-pill" id="feed-xp-pill">★ <span id="feed-xp-val">1240</span> XP</div>
+    </div>
+    <div class="filter-row">
+      <button class="filter-chip on" onclick="toggleChip(this)">All</button>
+      <button class="filter-chip" onclick="toggleChip(this)">Social</button>
+      <button class="filter-chip" onclick="toggleChip(this)">Physical</button>
+      <button class="filter-chip" onclick="toggleChip(this)">Skill</button>
+      <button class="filter-chip" onclick="toggleChip(this)">Language</button>
+      <button class="filter-chip" onclick="toggleChip(this)">Public</button>
+    </div>
+    <div class="content">
+
+      <div class="quest-card">
+        <div class="quest-video-thumb">
+          <div class="cam-half front">
+            <span class="cam-label">FRONT</span>
+            <div class="cam-face"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+          </div>
+          <div class="cam-half back">
+            <span class="cam-label">BACK</span>
+            <div class="cam-face"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+          </div>
+          <div class="play-btn"><div class="play-circle"><svg viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9"/></svg></div></div>
+          <button class="do-btn-overlay" onclick="goScreen('submit')">DO THIS →</button>
+        </div>
+        <div class="quest-meta">
+          <div class="quest-top">
+            <div class="quest-title">Ordered food wearing a full knight helmet</div>
+            <div class="xp-badge">500 XP</div>
+          </div>
+          <div class="quest-bottom">
+            <div class="quest-user">
+              <div class="user-avatar av-coral">TK</div>
+              <span class="user-name">tomk</span>
+            </div>
+            <span class="tag-chip">social</span>
+            <span class="tag-chip">public</span>
+            <div class="quest-loc">
+              <svg viewBox="0 0 24 24"><path d="M12 2C8.7 2 6 4.7 6 8c0 5 6 13 6 13s6-8 6-13c0-3.3-2.7-6-6-6z"/></svg>
+              Chicago
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quest-card">
+        <div class="quest-video-thumb">
+          <div class="cam-half front" style="background:#14101e;">
+            <span class="cam-label">FRONT</span>
+            <div class="cam-face"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+          </div>
+          <div class="cam-half back" style="background:#1a1020;">
+            <span class="cam-label">BACK</span>
+            <div class="cam-face"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+          </div>
+          <div class="play-btn"><div class="play-circle"><svg viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9"/></svg></div></div>
+          <button class="do-btn-overlay" onclick="goScreen('submit')">DO THIS →</button>
+        </div>
+        <div class="quest-meta">
+          <div class="quest-top">
+            <div class="quest-title">Asked a stranger to narrate my entire grocery trip</div>
+            <div class="xp-badge">250 XP</div>
+          </div>
+          <div class="quest-bottom">
+            <div class="quest-user">
+              <div class="user-avatar av-blue">MW</div>
+              <span class="user-name">mikewillis</span>
+            </div>
+            <span class="tag-chip">social</span>
+            <span class="tag-chip">language</span>
+            <div class="quest-loc">
+              <svg viewBox="0 0 24 24"><path d="M12 2C8.7 2 6 4.7 6 8c0 5 6 13 6 13s6-8 6-13c0-3.3-2.7-6-6-6z"/></svg>
+              Austin TX
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quest-card">
+        <div class="quest-video-thumb">
+          <div class="cam-half front" style="background:#0e1a14;">
+            <span class="cam-label">FRONT</span>
+            <div class="cam-face"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+          </div>
+          <div class="cam-half back" style="background:#141a10;">
+            <span class="cam-label">BACK</span>
+            <div class="cam-face"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+          </div>
+          <div class="play-btn"><div class="play-circle"><svg viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9"/></svg></div></div>
+          <button class="do-btn-overlay" onclick="goScreen('submit')">DO THIS →</button>
+        </div>
+        <div class="quest-meta">
+          <div class="quest-top">
+            <div class="quest-title">Paid entirely in pennies at a coffee shop</div>
+            <div class="xp-badge">100 XP</div>
+          </div>
+          <div class="quest-bottom">
+            <div class="quest-user">
+              <div class="user-avatar av-teal">SR</div>
+              <span class="user-name">sara_r</span>
+            </div>
+            <span class="tag-chip">public</span>
+            <div class="quest-loc">
+              <svg viewBox="0 0 24 24"><path d="M12 2C8.7 2 6 4.7 6 8c0 5 6 13 6 13s6-8 6-13c0-3.3-2.7-6-6-6z"/></svg>
+              NYC
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <button class="fab" onclick="goScreen('submit')">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <div class="nav-bar" id="nav-feed"></div>
+  </div>
+
+  <!-- ════════════════════ MAP ════════════════════ -->
+  <div class="screen" id="screen-map">
+    <div class="status-bar dark">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header" style="padding-bottom:6px;">
+      <span class="screen-title" style="color:#fff;">Map</span>
+      <div class="xp-pill">★ <span id="map-xp-val">1240</span> XP</div>
+    </div>
+    <div class="map-container">
+      <div class="map-filter-bar">
+        <input class="map-search" placeholder="Search quests..." type="text" />
+      </div>
+      <div id="leaflet-map"></div>
+      <div class="map-legend">
+        <div class="map-legend-title">XP Tier</div>
+        <div class="map-legend-row"><div class="legend-dot" style="width:10px;height:10px;background:#2D9C6E;"></div> Easy (100)</div>
+        <div class="map-legend-row"><div class="legend-dot" style="width:10px;height:10px;background:#E8A020;"></div> Medium (250)</div>
+        <div class="map-legend-row"><div class="legend-dot" style="width:10px;height:10px;background:#D85A30;"></div> Hard (500)</div>
+        <div class="map-legend-row"><div class="legend-dot" style="width:10px;height:10px;background:#7C3AED;"></div> Legend (1000)</div>
+      </div>
+    </div>
+    <div class="nav-bar" id="nav-map"></div>
+  </div>
+
+  <!-- ════════════════════ SUBMIT ════════════════════ -->
+  <div class="screen" id="screen-submit">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header">
+      <button class="back-btn" onclick="goScreen('feed')">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <span style="font-family:var(--font-d);font-size:16px;font-weight:800;">New Quest</span>
+      <div style="width:48px;"></div>
+    </div>
+    <div class="content">
+      <div class="submit-form">
+        <div class="form-group">
+          <span class="form-label">Quest Title</span>
+          <input class="form-input" type="text" placeholder="e.g. Ordered food in a pirate accent" id="questTitle" />
+        </div>
+        <div class="form-group">
+          <span class="form-label">Description</span>
+          <textarea class="form-input" rows="2" placeholder="Describe what you actually did..."></textarea>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Difficulty &amp; Base XP</span>
+          <div class="diff-row">
+            <button class="diff-chip" data-xp="100" onclick="selectDiff(this)">Easy<br><small>100 XP</small></button>
+            <button class="diff-chip selected" data-xp="250" onclick="selectDiff(this)">Medium<br><small>250 XP</small></button>
+            <button class="diff-chip" data-xp="500" onclick="selectDiff(this)">Hard<br><small>500 XP</small></button>
+            <button class="diff-chip" data-xp="1000" onclick="selectDiff(this)">Legend<br><small>1000 XP</small></button>
+          </div>
+        </div>
+        <div class="xp-estimate">
+          <span>Estimated XP reward</span>
+          <strong id="xpEstimate">250 XP</strong>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Location</span>
+          <div class="loc-row">
+            <svg viewBox="0 0 24 24"><path d="M12 2C8.7 2 6 4.7 6 8c0 5 6 13 6 13s6-8 6-13c0-3.3-2.7-6-6-6z"/><circle cx="12" cy="8" r="2"/></svg>
+            <span>Manhattan Beach, CA — detected</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Video</span>
+          <div class="record-zone" id="recordZone" onclick="goScreen('camera')">
+            <div class="record-icon" id="recordIcon">
+              <svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            </div>
+            <span class="record-text" id="recordText">Tap to record your quest</span>
+            <span class="record-sub" id="recordSub">Front + back cameras · 10 seconds</span>
+          </div>
+          <div class="info-note" style="margin-top:7px;">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p>Simultaneous dual-camera capture requires a native iOS (iPhone XS+) or Android app — not supported in web browsers.</p>
+          </div>
+        </div>
+        <button class="primary-btn" onclick="submitQuest()">Submit for Review</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════ CAMERA ════════════════════ -->
+  <div class="screen" id="screen-camera">
+    <div class="recording-progress"><div class="recording-bar" id="recordBar"></div></div>
+    <div class="cam-top-bar">
+      <button class="cam-action-btn" onclick="goScreen('submit')">✕ Cancel</button>
+      <span class="cam-wordmark">DUAL CAM</span>
+      <button class="cam-action-btn">⚡ Flash</button>
+    </div>
+    <div class="cam-split">
+      <div class="cam-pane top-pane">
+        <span class="cam-pane-label">BACK CAM — Environment</span>
+        <div class="grid-hint"></div>
+        <span class="cam-pane-badge">4K</span>
+      </div>
+      <div class="cam-pane bot-pane">
+        <span class="cam-pane-label">FRONT CAM — You</span>
+        <div class="grid-hint"></div>
+      </div>
+    </div>
+    <div class="record-controls">
+      <div class="timer-ring">
+        <svg viewBox="0 0 60 60" width="60" height="60">
+          <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3"/>
+          <circle id="timerArc" cx="30" cy="30" r="26" fill="none" stroke="#f87171" stroke-width="3"
+            stroke-dasharray="163.4" stroke-dashoffset="163.4" stroke-linecap="round"/>
+        </svg>
+        <span class="timer-num" id="timerNum">10</span>
+      </div>
+      <button class="shutter-btn" id="shutterBtn" onclick="toggleRecord()">
+        <div class="shutter-inner" id="shutterInner"></div>
+      </button>
+      <button class="cam-side-btn">
+        <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-5.01"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════ PROFILE ════════════════════ -->
+  <div class="screen" id="screen-profile">
+    <div class="profile-bg-layer" id="profile-bg"></div>
+    <div class="status-bar" id="profile-status">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="content" style="padding-top:6px;">
+      <div class="profile-hero">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" id="displayAvatar">AK</div>
+        </div>
+        <div class="profile-info">
+          <div class="profile-name" id="displayUsername">alex_k</div>
+          <div class="level-row">
+            <span class="level-badge" id="displayLevel">Lvl 1</span>
+            <span class="level-title" id="displayTitle" style="color:var(--text2);">Novice</span>
+          </div>
+        </div>
+        <button class="edit-btn" onclick="goScreen('settings')">
+          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
+      </div>
+
+
+      <div class="xp-bar-wrap">
+        <div class="xp-bar-labels">
+          <span id="xpCurrentText">1,240 XP</span>
+          <span id="xpNextText">1,318 XP to Lvl 7</span>
+        </div>
+        <div class="xp-bar-bg"><div class="xp-bar-fill" id="xpProgressBar" style="width:68%;"></div></div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-val">23</div><div class="stat-lbl">Quests Done</div></div>
+        <div class="stat-card"><div class="stat-val" id="statTotalXp">1,240</div><div class="stat-lbl">Total XP</div></div>
+        <div class="stat-card"><div class="stat-val">#48</div><div class="stat-lbl">Global Rank</div></div>
+      </div>
+
+      <!-- Creator Royalty Banner -->
+      <div class="royalty-banner" id="royaltyBanner">
+        <div class="royalty-left">
+          <span class="royalty-label">Creator Royalties</span>
+          <span class="royalty-val" id="royaltyVal">+87 XP</span>
+          <span class="royalty-sub" id="royaltySub">from your quests today (0.7% per completion)</span>
+        </div>
+        <span class="royalty-icon">💰</span>
+      </div>
+
+      <div class="tab-row">
+        <button class="tab-btn active" id="tab-quests-btn" onclick="switchProfileTab('quests')">Completed</button>
+        <button class="tab-btn" id="tab-cosmetics-btn" onclick="switchProfileTab('cosmetics')">Cosmetics</button>
+      </div>
+
+      <div id="tab-quests">
+        <div class="mini-quest-row">
+          <div class="mini-thumb"><div class="mini-thumb-dual"><div class="mini-half f"></div><div class="mini-half b"></div></div></div>
+          <div class="mini-info"><div class="mini-title">Ordered with a bag on my head</div><div class="mini-sub">2 days ago · LA, CA</div></div>
+          <div class="mini-xp">+350 XP</div>
+        </div>
+        <div class="mini-quest-row">
+          <div class="mini-thumb"><div class="mini-thumb-dual"><div class="mini-half f" style="background:#1a1020;"></div><div class="mini-half b" style="background:#1a1a10;"></div></div></div>
+          <div class="mini-info"><div class="mini-title">Paid in all pennies at checkout</div><div class="mini-sub">5 days ago · LA, CA</div></div>
+          <div class="mini-xp">+180 XP</div>
+        </div>
+        <div class="mini-quest-row">
+          <div class="mini-thumb"><div class="mini-thumb-dual"><div class="mini-half f" style="background:#102020;"></div><div class="mini-half b" style="background:#201010;"></div></div></div>
+          <div class="mini-info"><div class="mini-title">Narrated my own morning commute</div><div class="mini-sub">1 week ago · LA, CA</div></div>
+          <div class="mini-xp">+220 XP</div>
+        </div>
+      </div>
+
+      <div id="tab-cosmetics" style="display:none;">
+        <div class="cosmetics-grid" id="cosmetics-container"></div>
+      </div>
+    </div>
+    <div class="nav-bar" id="nav-profile"></div>
+  </div>
+
+  <!-- ════════════════════ MOD REVIEW ════════════════════ -->
+  <div class="screen" id="screen-review">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header">
+      <span class="screen-title">Review Queue</span>
+      <div class="xp-pill">★ +15 / vote</div>
+    </div>
+    <div class="content">
+      <div class="mod-banner">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <p>Moderator view. Vote on XP awards — each vote earns you <strong>+15 XP</strong>. Target: &lt;10 sec/review.</p>
+      </div>
+
+      <!-- Pending card 1 -->
+      <div class="review-card" id="review-card-1">
+        <div class="review-header">
+          <div>
+            <div class="review-username">mrod</div>
+            <div class="review-meta-sub">Chicago, IL · 2h ago · Hard</div>
+          </div>
+          <span class="review-status status-pending">Pending</span>
+        </div>
+        <div class="review-body">
+          <div class="review-vid"><div class="rv-half rv-front"></div><div class="rv-half rv-back"></div></div>
+          <div class="review-text">
+            <div class="review-title">Walked through the mall in full knight armor</div>
+            <div class="review-detail">Proposed: <span class="xp-proposed">500 XP</span></div>
+          </div>
+        </div>
+        <div class="vote-row" id="vote-row-1">
+          <button class="vote-btn vote-approve" onclick="castVote(1,'approved')">Approve ✓</button>
+          <button class="vote-btn vote-more-xp" onclick="castVote(1,'more')">More XP ↑</button>
+          <button class="vote-btn vote-reject"  onclick="castVote(1,'reject')">Reject ✗</button>
+        </div>
+      </div>
+
+      <!-- Pending card 2 -->
+      <div class="review-card" id="review-card-2">
+        <div class="review-header">
+          <div>
+            <div class="review-username">jwillis</div>
+            <div class="review-meta-sub">Austin, TX · 5h ago · Medium</div>
+          </div>
+          <span class="review-status status-approved" id="rc2-status">Approved ✓</span>
+        </div>
+        <div class="review-body">
+          <div class="review-vid"><div class="rv-half rv-front" style="background:#102010;"></div><div class="rv-half rv-back" style="background:#101020;"></div></div>
+          <div class="review-text">
+            <div class="review-title">Asked a stranger to narrate my grocery trip</div>
+            <div class="review-detail">Final: <span class="xp-proposed">200 XP</span></div>
+          </div>
+        </div>
+        <div class="review-result">
+          <svg viewBox="0 0 24 24" stroke="#166534" fill="none" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          12 reviewers approved · avg 195 XP awarded
+        </div>
+      </div>
+
+      <!-- Pending card 3 -->
+      <div class="review-card" id="review-card-3">
+        <div class="review-header">
+          <div>
+            <div class="review-username">priya_d</div>
+            <div class="review-meta-sub">NYC · 8h ago · Easy</div>
+          </div>
+          <span class="review-status status-pending">Pending</span>
+        </div>
+        <div class="review-body">
+          <div class="review-vid"><div class="rv-half rv-front" style="background:#141820;"></div><div class="rv-half rv-back" style="background:#201820;"></div></div>
+          <div class="review-text">
+            <div class="review-title">Complimented every person I passed for 5 minutes</div>
+            <div class="review-detail">Proposed: <span class="xp-proposed">100 XP</span></div>
+          </div>
+        </div>
+        <div class="vote-row" id="vote-row-3">
+          <button class="vote-btn vote-approve" onclick="castVote(3,'approved')">Approve ✓</button>
+          <button class="vote-btn vote-more-xp" onclick="castVote(3,'more')">More XP ↑</button>
+          <button class="vote-btn vote-reject"  onclick="castVote(3,'reject')">Reject ✗</button>
+        </div>
+      </div>
+
+    </div>
+    <div class="nav-bar" id="nav-review"></div>
+  </div>
+
+  <!-- ════════════════════ SETTINGS ════════════════════ -->
+  <div class="screen" id="screen-settings">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header">
+      <button class="back-btn" onclick="goScreen('profile')">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <span style="font-family:var(--font-d);font-size:16px;font-weight:800;">Settings</span>
+      <div style="width:48px;"></div>
+    </div>
+
+    <div class="content">
+      <!-- Profile summary card -->
+      <div class="settings-profile-card">
+        <div class="settings-avatar" id="settingsAvatar">AK</div>
+        <div class="settings-profile-info">
+          <div class="settings-profile-name" id="settingsUsername">alex_k</div>
+          <div class="settings-profile-sub" id="settingsLevelSub">Lvl 1 · Novice</div>
+        </div>
+        <button class="settings-profile-edit-btn" onclick="goScreen('edit-profile')">Edit Profile</button>
+      </div>
+
+      <!-- Account section -->
+      <div class="settings-section">
+        <div class="settings-section-label">Account</div>
+        <div class="settings-card">
+          <div class="settings-row" onclick="goScreen('edit-profile')">
+            <div class="settings-row-icon brand">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Edit Profile</div>
+              <div class="settings-row-sub">Username, photo, bio</div>
+            </div>
+            <div class="settings-row-right">
+              <div class="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+          <div class="settings-row" onclick="goScreen('notifications')">
+            <div class="settings-row-icon gold">
+              <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Notifications</div>
+              <div class="settings-row-sub" id="notifSubtitle">Quests, reviews, XP alerts</div>
+            </div>
+            <div class="settings-row-right">
+              <div class="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+          <div class="settings-row" onclick="goScreen('privacy')">
+            <div class="settings-row-icon blue">
+              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Privacy</div>
+              <div class="settings-row-sub">Profile visibility, data sharing</div>
+            </div>
+            <div class="settings-row-right">
+              <div class="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connected Accounts section -->
+      <div class="settings-section">
+        <div class="settings-section-label">Connected Accounts</div>
+        <div class="settings-card">
+          <div class="settings-row" onclick="handleConnectGoogle()">
+            <div class="settings-row-icon" style="background:#fff;border:1px solid var(--border2);">
+              <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Google</div>
+              <div class="settings-row-sub" id="googleConnectSub">Not connected</div>
+            </div>
+            <div class="settings-row-right">
+              <div id="googleConnectDot" class="disconnected-dot"></div>
+              <div class="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+          <div class="settings-row" onclick="handleConnectApple()">
+            <div class="settings-row-icon dark">
+              <svg viewBox="0 0 24 24" fill="white" width="16" height="16">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+              </svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Apple</div>
+              <div class="settings-row-sub" id="appleConnectSub">Not connected</div>
+            </div>
+            <div class="settings-row-right">
+              <div id="appleConnectDot" class="disconnected-dot"></div>
+              <div class="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- App section -->
+      <div class="settings-section">
+        <div class="settings-section-label">App</div>
+        <div class="settings-card">
+          <div class="settings-row" onclick="showToast('App version 0.7.0 — Prototype')">
+            <div class="settings-row-icon gray">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">About Sidequest</div>
+              <div class="settings-row-sub">Version 0.7.0</div>
+            </div>
+            <div class="settings-row-right">
+              <div class="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+          <div class="settings-row" onclick="showToast('Rate us on the App Store!')">
+            <div class="settings-row-icon green">
+              <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Rate the App</div>
+              <div class="settings-row-sub">Help us improve ★★★★★</div>
+            </div>
+            <div class="settings-row-right">
+              <div class="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Danger Zone -->
+      <div class="settings-section">
+        <div class="settings-section-label">Account Actions</div>
+        <div class="settings-card">
+          <div class="settings-row danger" onclick="signOut()">
+            <div class="settings-row-icon red">
+              <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Sign Out</div>
+              <div class="settings-row-sub" id="signedInAsSub">Signed in as alex_k</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="height:20px;"></div>
+    </div>
+  </div>
+
+  <!-- ════════════════════ EDIT PROFILE ════════════════════ -->
+  <div class="screen" id="screen-edit-profile">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header">
+      <button class="back-btn" onclick="goScreen('settings')">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <span style="font-family:var(--font-d);font-size:16px;font-weight:800;">Edit Profile</span>
+      <div style="width:48px;"></div>
+    </div>
+    <div class="content">
+      <!-- Avatar section -->
+      <div class="edit-profile-avatar-section">
+        <div class="edit-avatar-wrap">
+          <div class="edit-avatar" id="editProfileAvatar">AK</div>
+          <div class="edit-avatar-cam-badge" onclick="document.getElementById('pfpUploadEdit').click()">
+            <svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          </div>
+        </div>
+        <div class="edit-avatar-name" onclick="document.getElementById('pfpUploadEdit').click()">Change Photo</div>
+        <input type="file" id="pfpUploadEdit" accept="image/*" style="display:none;" onchange="handlePfpUploadEdit(event)">
+      </div>
+
+      <!-- Fields -->
+      <div class="edit-profile-fields">
+        <div class="edit-field-row">
+          <div class="edit-field-label">Username</div>
+          <input class="edit-field-input" type="text" id="editUsernameField" placeholder="username" value="alex_k" />
+        </div>
+        <div class="edit-field-row">
+          <div class="edit-field-label">Display Name</div>
+          <input class="edit-field-input" type="text" id="editDisplayName" placeholder="Your name" value="Alex K." />
+        </div>
+        <div class="edit-field-row">
+          <div class="edit-field-label">Bio</div>
+          <input class="edit-field-input" type="text" id="editBio" placeholder="A short bio..." value="Daring the ordinary 🗡️" />
+        </div>
+      </div>
+
+      <button class="edit-save-btn" onclick="saveProfileFromScreen()">Save Changes</button>
+      <div style="height:24px;"></div>
+    </div>
+  </div>
+
+  <!-- ════════════════════ NOTIFICATIONS ════════════════════ -->
+  <div class="screen" id="screen-notifications">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header">
+      <button class="back-btn" onclick="goScreen('settings')">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <span style="font-family:var(--font-d);font-size:16px;font-weight:800;">Notifications</span>
+      <div style="width:48px;"></div>
+    </div>
+    <div class="content">
+      <div style="margin:14px 14px 0;">
+        <div class="settings-section-label" style="padding-left:0;">Quest Alerts</div>
+        <div class="settings-card">
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">New Quest Nearby</div>
+              <div class="toggle-sub">When a quest is added near you</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Quest Approved</div>
+              <div class="toggle-sub">When your submission is approved</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Trailblazer Opportunity</div>
+              <div class="toggle-sub">When a new quest has no completions</div>
+            </div>
+            <button class="toggle-switch" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="settings-section-label" style="padding-left:0;padding-top:18px;">XP & Rewards</div>
+        <div class="settings-card">
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Creator Royalties</div>
+              <div class="toggle-sub">Daily XP earnings from your quests</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Level Up</div>
+              <div class="toggle-sub">Celebrate when you hit a new level</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Weekly Recap</div>
+              <div class="toggle-sub">Your XP summary every Sunday</div>
+            </div>
+            <button class="toggle-switch" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="settings-section-label" style="padding-left:0;padding-top:18px;">Social</div>
+        <div class="settings-card">
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Mod Review Requests</div>
+              <div class="toggle-sub">When you're needed in the review queue</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Friend Completions</div>
+              <div class="toggle-sub">When a friend finishes your quest</div>
+            </div>
+            <button class="toggle-switch" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+      </div>
+      <div style="height:24px;"></div>
+    </div>
+  </div>
+
+  <!-- ════════════════════ PRIVACY ════════════════════ -->
+  <div class="screen" id="screen-privacy">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="wordmark">SIDEQUEST</span>
+      <span>●●●</span>
+    </div>
+    <div class="screen-header">
+      <button class="back-btn" onclick="goScreen('settings')">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <span style="font-family:var(--font-d);font-size:16px;font-weight:800;">Privacy</span>
+      <div style="width:48px;"></div>
+    </div>
+    <div class="content">
+      <div style="margin:14px 14px 0;">
+        <div class="settings-section-label" style="padding-left:0;">Profile Visibility</div>
+        <div class="settings-card">
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Public Profile</div>
+              <div class="toggle-sub">Anyone can see your profile and quests</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Show on Leaderboard</div>
+              <div class="toggle-sub">Display your rank publicly</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Show Location on Map</div>
+              <div class="toggle-sub">Pin your quests to the world map</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="settings-section-label" style="padding-left:0;padding-top:18px;">Data & Personalization</div>
+        <div class="settings-card">
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Personalized Feed</div>
+              <div class="toggle-sub">Quests ranked by your activity</div>
+            </div>
+            <button class="toggle-switch on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Analytics Sharing</div>
+              <div class="toggle-sub">Help improve Sidequest anonymously</div>
+            </div>
+            <button class="toggle-switch" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="settings-section-label" style="padding-left:0;padding-top:18px;">Danger Zone</div>
+        <div class="settings-card">
+          <div class="settings-row danger" onclick="showToast('Account deletion — contact support@sidequest.app')">
+            <div class="settings-row-icon red">
+              <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </div>
+            <div class="settings-row-content">
+              <div class="settings-row-label">Delete Account</div>
+              <div class="settings-row-sub">Permanently remove your data</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="height:24px;"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div><!-- /phone -->
+
+<script>
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+const state = {
+  username:    'alex_k',
+  displayName: 'Alex K.',
+  bio:         'Daring the ordinary 🗡️',
+  isMod:       false,
+  totalXp:     1240,
+  royaltyXp:   87,
+  equipped:    { ring: null, background: null },
+  pfpUrl:      null,
+  // Auth state
+  isLoggedIn:  false,
+  authProvider: null,   // 'google' | 'apple' | 'email'
+  authEmail:   null,
+  connectedGoogle: false,
+  connectedApple:  false,
+};
+
+// ─── COSMETICS DB ────────────────────────────
+const cosmeticsDB = [
+  { id:'ring-gold',    type:'ring',       name:'Gold Ring',      reqLvl:3,  cssClass:'ring-gold',   preview:'box-shadow:0 0 0 3px #fbbf24;' },
+  { id:'ring-neon',    type:'ring',       name:'Neon Ring',      reqLvl:6,  cssClass:'ring-neon',   preview:'box-shadow:0 0 0 3px #10b981;' },
+  { id:'ring-royal',   type:'ring',       name:'Royal Ring',     reqLvl:10, cssClass:'ring-royal',  preview:'box-shadow:0 0 0 3px #7C3AED;' },
+  { id:'bg-obsidian',  type:'background', name:'Obsidian',       reqLvl:4,  cssClass:'bg-obsidian', preview:'background:linear-gradient(135deg,#1f1c2c,#928dab);' },
+  { id:'bg-sunset',    type:'background', name:'Sunset',         reqLvl:8,  cssClass:'bg-sunset',   preview:'background:linear-gradient(135deg,#ff7e5f,#feb47b);' },
+  { id:'bg-forest',    type:'background', name:'Forest',         reqLvl:12, cssClass:'bg-forest',   preview:'background:linear-gradient(135deg,#134e5e,#71b280);' },
+  { id:'bg-midnight',  type:'background', name:'Midnight',       reqLvl:15, cssClass:'bg-midnight', preview:'background:linear-gradient(135deg,#0f0c29,#302b63);' },
+];
+
+// ─── MAP QUEST DATA ──────────────────────────
+const mapQuests = [
+  { id:1, title:'Walked through mall in full knight armor',       lat:41.8827, lng:-87.6233, xp:500,  tier:'hard',   completions:94, trailblazer:true  },
+  { id:2, title:'Asked stranger to narrate grocery trip',         lat:30.2672, lng:-97.7431, xp:250,  tier:'medium', completions:312, trailblazer:false },
+  { id:3, title:'Ordered food in a pirate accent',                lat:34.0522, lng:-118.2437,xp:250,  tier:'medium', completions:201, trailblazer:false },
+  { id:4, title:'Paid entirely in pennies at checkout',           lat:40.7128, lng:-74.0060, xp:100,  tier:'easy',   completions:528, trailblazer:false },
+  { id:5, title:'Narrated own commute in sports-caster voice',    lat:37.7749, lng:-122.4194,xp:100,  tier:'easy',   completions:187, trailblazer:false },
+  { id:6, title:'Convinced 3 strangers to high-five simultaneously', lat:51.5074, lng:-0.1278, xp:1000, tier:'legend', completions:22, trailblazer:true  },
+  { id:7, title:'Wore a cape to the gym',                         lat:48.8566, lng:2.3522,   xp:500,  tier:'hard',   completions:63, trailblazer:false },
+  { id:8, title:'Complimented every passerby for 5 minutes',      lat:35.6762, lng:139.6503, xp:100,  tier:'easy',   completions:140, trailblazer:false },
+  { id:9, title:'Had full conversation only using questions',      lat:52.5200, lng:13.4050,  xp:250,  tier:'medium', completions:89,  trailblazer:false },
+  { id:10,title:'Did entire shopping trip in slow motion',         lat:-33.8688,lng:151.2093, xp:500,  tier:'hard',   completions:44,  trailblazer:true  },
+];
+
+// ─── LEVEL SYSTEM ────────────────────────────
+// XP floor per level band (Phase 2 spec)
+function minXpForLevel(lvl) {
+  if (lvl <= 3)  return 100;
+  if (lvl <= 7)  return 200;
+  if (lvl <= 12) return 300;
+  return 300; // capped at 300
+}
+
+function calcLevel(xp) {
+  let lvl = 1, gap = 100, threshold = 100, prev = 0;
+  while (xp >= threshold) {
+    lvl++; prev = threshold;
+    gap = Math.floor(gap * 1.5);
+    threshold += gap;
+  }
+  const intoLvl = xp - prev;
+  const pct = Math.min((intoLvl / gap) * 100, 100);
+  const titles = ['Novice','Initiate','Adventurer','Explorer','Trailblazer','Knight','Shadow Knight','Legend','Mythic','Immortal'];
+  return { level: lvl, nextThreshold: threshold, gap, pct, title: titles[Math.min(lvl-1, titles.length-1)], minXp: minXpForLevel(lvl) };
+}
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+const NAV_SVGS = {
+  feed:   '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  map:    '<svg viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>',
+  submit: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  profile:'<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  review: '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+};
+
+function buildNav(activeScreen) {
+  const screens = ['feed','map','submit','profile'];
+  if (state.isMod) screens.splice(3, 0, 'review');
+  const labels = { feed:'Feed', map:'Map', submit:'Submit', profile:'Profile', review:'Review' };
+  return screens.map(s => `
+    <button class="nav-item ${s===activeScreen?'active':''}" onclick="goScreen('${s}')">
+      <div class="nav-icon">${NAV_SVGS[s]}</div>
+      <span class="nav-label">${labels[s]}</span>
+    </button>`).join('');
+}
+
+function renderNavBars(active) {
+  ['feed','map','submit','profile','review'].forEach(id => {
+    const el = document.getElementById('nav-'+id);
+    if (el) el.innerHTML = buildNav(active);
+  });
+}
+
+let mapInitialized = false;
+let leafletMap = null;
+
+// Screens that show the bottom nav bar
+const NAV_SCREENS = new Set(['feed','map','submit','profile','review']);
+
+function goScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('screen-'+name);
+  if (!el) return;
+  el.classList.add('active');
+  if (NAV_SCREENS.has(name)) renderNavBars(name);
+  if (name !== 'camera' && recording) stopRecord();
+  if (name === 'map' && !mapInitialized) initMap();
+  if (name === 'profile') updateProfileUI();
+  if (name === 'settings') updateSettingsUI();
+  if (name === 'edit-profile') updateEditProfileUI();
+}
+
+// ═══════════════════════════════════════════════
+//  MAP (Leaflet + OpenStreetMap)
+// ═══════════════════════════════════════════════
+
+// Store marker references so we can rescale them on zoom
+const mapMarkers = [];
+
+// ── Pin sizing ──────────────────────────────────
+// Base size (px at zoom 10) is computed from completions + xp using
+// logarithmic scales so outliers don't dwarf everything else.
+function pinSize(completions, xp) {
+  const rawSize = (Math.log(1 + completions) * 4.5) + (Math.log(xp) * 3.2);
+  return Math.max(26, Math.min(60, Math.round(rawSize)));
+}
+
+// Scale factor relative to zoom level 10 (city view).
+// Pins shrink as you zoom out so they don't overwhelm the globe view,
+// and grow slightly when zoomed in to keep them tappable.
+function getPinZoomScale(zoom) {
+  const BASE_ZOOM = 10;
+  return Math.max(0.25, Math.min(1.5, Math.pow(1.35, zoom - BASE_ZOOM)));
+}
+
+// Builds a fresh L.divIcon for a quest at the given zoom scale.
+// Extracted as a helper so both init and zoomend reuse the same logic.
+function buildPinIcon(q, zoomScale) {
+  const baseSize = pinSize(q.completions, q.xp);
+  const sz = Math.max(12, Math.round(baseSize * zoomScale));
+  const tierClass = q.xp >= 1000 ? 'tier-legend'
+                  : q.xp >= 500  ? 'tier-hard'
+                  : q.xp >= 250  ? 'tier-medium'
+                  : 'tier-easy';
+  const trailClass = q.trailblazer ? ' trailblazer' : '';
+  const fontSize = Math.floor(sz * 0.45);
+  let pinContent = q.xp >= 1000 ? '★' : '⚡';
+  let bgStyle = '';
+  if (q.trailblazer && q.trailblazerImg) {
+    pinContent = '';
+    bgStyle = `background-image:url('${q.trailblazerImg}');background-size:cover;background-position:center;`;
+  }
+  return L.divIcon({
+    html: `<div class="quest-pin ${tierClass}${trailClass}" style="width:${sz}px;height:${sz}px;font-size:${fontSize}px;${bgStyle}">${pinContent}</div>`,
+    className: '',
+    iconSize:   [sz, sz],
+    iconAnchor: [sz / 2, sz / 2]
+  });
+}
+
+// Called on every zoomend to keep pin screen-size consistent.
+function updateMapPinSizes() {
+  if (!leafletMap) return;
+  const scale = getPinZoomScale(leafletMap.getZoom());
+  mapMarkers.forEach(({ marker, quest }) => {
+    marker.setIcon(buildPinIcon(quest, scale));
+  });
+}
+
+function initMap() {
+  if (mapInitialized) return;
+  if (typeof L === 'undefined') {
+    // Leaflet not ready yet — poll until available
+    const poll = setInterval(() => {
+      if (typeof L !== 'undefined') { clearInterval(poll); _buildMap(); }
+    }, 80);
+    return;
+  }
+  _buildMap();
+}
+
+function _buildMap() {
+  if (mapInitialized) return;
+  mapInitialized = true;
+
+  // 1. Initialize the map with the fallback world view
+  leafletMap = L.map('leaflet-map', {
+    center: [30, 10], 
+    zoom: 2,
+    zoomControl: false,
+    attributionControl: false
+  });
+
+  // 2. Attempt to find the user's location
+  // setView: true will automatically pan and zoom if location is found
+  // maxZoom: 14 ensures we don't zoom in TOO close (e.g., inside their house)
+  leafletMap.locate({ setView: true, maxZoom: 14 });
+
+  // Handle location discovery
+  leafletMap.on('locationfound', (e) => {
+    console.log("Location found! Accuracy:", e.accuracy);
+    // updateMapPinSizes will trigger automatically via 'zoomend' 
+    // when setView changes the zoom level.
+  });
+
+  // Handle location denial or error
+  leafletMap.on('locationerror', (e) => {
+    console.warn("Location access denied or failed. Defaulting to world view.");
+    // No need to do anything else; the map is already at [30, 10] zoom 2.
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(leafletMap);
+
+  L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(leafletMap);
+
+  // We still calculate initial scale for pins, but remember 
+  // updateMapPinSizes() will run again as soon as .locate() finishes.
+  const initialScale = getPinZoomScale(leafletMap.getZoom());
+
+  mapQuests.forEach(q => {
+    const safeTitle = q.title.replace(/'/g, "\\'");
+    const popup = L.popup({ closeButton: true, maxWidth: 210, minWidth: 200 }).setContent(`
+      <div class="map-popup">
+        <div class="map-popup-title">${q.title}</div>
+        <div class="map-popup-row">
+          <span class="map-popup-xp">${q.xp} XP</span>
+          <span class="map-popup-completions">🏁 ${q.completions} completions</span>
+        </div>
+        ${q.trailblazer ? '<div style="font-size:10px;color:#7C3AED;margin-bottom:6px;font-weight:700;">👑 Trailblazer available</div>' : ''}
+        <button class="map-popup-do" onclick="doQuestFromMap('${safeTitle}')">DO THIS QUEST →</button>
+      </div>`
+    );
+
+    const marker = L.marker([q.lat, q.lng], { icon: buildPinIcon(q, initialScale) })
+      .addTo(leafletMap)
+      .bindPopup(popup);
+
+    mapMarkers.push({ marker, quest: q });
+  });
+
+  // Keep pins at a consistent screen size regardless of zoom level
+  leafletMap.on('zoomend', updateMapPinSizes);
+
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 150);
+}
+
+function doQuestFromMap(title) {
+  document.getElementById('questTitle').value = title;
+  goScreen('submit');
+  showToast('Quest loaded — record your video!');
+}
+
+// ═══════════════════════════════════════════════
+//  SUBMIT + CAMERA
+// ═══════════════════════════════════════════════
+let selectedXp = 250;
+
+function selectDiff(el) {
+  document.querySelectorAll('.diff-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedXp = parseInt(el.dataset.xp);
+  document.getElementById('xpEstimate').textContent = selectedXp + ' XP';
+}
+
+function submitQuest() {
+  const title = document.getElementById('questTitle').value.trim();
+  if (!title) { showToast('Add a quest title first!'); return; }
+  showToast('Quest submitted for review! XP pending ✓');
+  setTimeout(() => goScreen('feed'), 1500);
+}
+
+// Camera
+let recording = false, recInterval = null, recTime = 0;
+
+function toggleRecord() { recording ? stopRecord() : startRecord(); }
+
+function startRecord() {
+  recording = true; recTime = 0;
+  const btn = document.getElementById('shutterBtn');
+  const num = document.getElementById('timerNum');
+  const arc = document.getElementById('timerArc');
+  const bar = document.getElementById('recordBar');
+  btn.classList.add('recording');
+  num.classList.add('running');
+  const CIRC = 163.4;
+  recInterval = setInterval(() => {
+    recTime += 0.1;
+    const p = Math.min(recTime / 10, 1);
+    arc.style.strokeDashoffset = CIRC - p * CIRC;
+    bar.style.width = (p * 100) + '%';
+    num.textContent = Math.ceil(10 - recTime);
+    if (recTime >= 10) stopRecord(true);
+  }, 100);
+}
+
+function stopRecord(done) {
+  recording = false; clearInterval(recInterval);
+  const btn = document.getElementById('shutterBtn');
+  const num = document.getElementById('timerNum');
+  const arc = document.getElementById('timerArc');
+  const bar = document.getElementById('recordBar');
+  btn.classList.remove('recording');
+  num.classList.remove('running');
+  num.textContent = '10';
+  arc.style.strokeDashoffset = '163.4';
+  bar.style.width = '0%';
+  if (done) {
+    showToast('Video captured! 10s dual-cam clip saved');
+    setTimeout(() => {
+      goScreen('submit');
+      const zone = document.getElementById('recordZone');
+      const icon = document.getElementById('recordIcon');
+      zone.classList.add('recorded');
+      document.getElementById('recordText').textContent = 'Video recorded — tap to re-record';
+      document.getElementById('recordSub').textContent = 'Front + back · 10 seconds';
+      icon.classList.add('done');
+      icon.querySelector('svg').innerHTML = '<polyline points="20 6 9 17 4 12" stroke-width="2.5"/>';
+    }, 600);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  AUTH — Real OAuth (Google GIS + Apple JS SDK + Email)
+// ═══════════════════════════════════════════════
+
+// ── Runtime OAuth config (loaded from sessionStorage) ──
+let OAUTH_CFG = {
+  googleClientId: sessionStorage.getItem('sq_google_client_id') || '22718455853-g791ssprh6e89q6u2qujm8gg1v7m7ktr.apps.googleusercontent.com',
+  appleServiceId:  sessionStorage.getItem('sq_apple_service_id')  || '',
+};
+
+// ── Email auth mode state ──
+let emailMode = 'signin'; // 'signin' | 'signup'
+
+// ── Config overlay ────────────────────────────
+function showOAuthConfig() {
+  const overlay = document.getElementById('oauthConfigOverlay');
+  document.getElementById('cfgGoogleClientId').value = OAUTH_CFG.googleClientId;
+  document.getElementById('cfgAppleServiceId').value = OAUTH_CFG.appleServiceId;
+  overlay.classList.add('show');
+}
+
+function hideOAuthConfig() {
+  document.getElementById('oauthConfigOverlay').classList.remove('show');
+}
+
+function saveOAuthConfig() {
+  const gId = document.getElementById('cfgGoogleClientId').value.trim();
+  const aId = document.getElementById('cfgAppleServiceId').value.trim();
+  OAUTH_CFG.googleClientId = gId;
+  OAUTH_CFG.appleServiceId  = aId;
+  if (gId) sessionStorage.setItem('sq_google_client_id', gId);
+  if (aId) sessionStorage.setItem('sq_apple_service_id',  aId);
+  hideOAuthConfig();
+  updateAuthButtonStates();
+  showToast('OAuth credentials saved ✓');
+}
+
+function skipOAuthConfig() {
+  hideOAuthConfig();
+  // Hide Google + Apple buttons if no credentials, show email-only UI
+  updateAuthButtonStates();
+}
+
+function updateAuthButtonStates() {
+  const hasGoogle = !!OAUTH_CFG.googleClientId;
+  const hasApple  = !!OAUTH_CFG.appleServiceId;
+  const btnGoogle = document.getElementById('btnGoogle');
+  const btnApple  = document.getElementById('btnApple');
+  const divider   = document.getElementById('authDivider');
+  if (btnGoogle) btnGoogle.style.display = hasGoogle ? '' : 'none';
+  if (btnApple)  btnApple.style.display  = hasApple  ? '' : 'none';
+  // Keep divider visible as long as at least one social button is showing
+  if (divider) divider.style.display = (hasGoogle || hasApple) ? '' : 'none';
+}
+
+// ── Shared loading helpers ────────────────────
+function showAuthLoading(msg) {
+  const el = document.getElementById('authLoadingOverlay');
+  document.getElementById('authLoadingText').textContent = msg || 'Signing in...';
+  el.classList.add('show');
+}
+function hideAuthLoading() {
+  document.getElementById('authLoadingOverlay').classList.remove('show');
+}
+
+// ── Post sign-in completion ───────────────────
+function completeSignIn(provider, email, name, avatarUrl) {
+  state.isLoggedIn   = true;
+  state.authProvider = provider;
+  state.authEmail    = email || null;
+
+  if (name) {
+    state.displayName = name;
+    // Derive a username: lowercase, no spaces, max 16 chars
+    const derived = name.replace(/\s+/g, '_').toLowerCase().replace(/[^a-z0-9_]/g, '').substring(0, 16);
+    if (derived) state.username = derived;
+  }
+  if (avatarUrl) state.pfpUrl = avatarUrl;
+  if (provider === 'google') state.connectedGoogle = true;
+  if (provider === 'apple')  state.connectedApple  = true;
+
+  hideAuthLoading();
+  closeEmailPanel();
+  updateProfileUI();
+  goScreen('feed');
+  showToast('Welcome to Sidequest! 🗡️');
+}
+
+// ── Google Sign-In (GIS popup flow) ──────────
+function signInWithGoogle() {
+  if (!OAUTH_CFG.googleClientId) {
+    showOAuthConfig();
+    return;
+  }
+
+  // Ensure SDK is loaded
+  if (typeof google === 'undefined' || !google.accounts) {
+    showToast('Google SDK still loading — try again in a moment');
+    return;
+  }
+
+  showAuthLoading('Opening Google sign-in...');
+
+  // Use the OAuth2 token client — opens a real Google popup
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CFG.googleClientId,
+    scope: 'openid profile email',
+    prompt: 'select_account',
+    callback: (tokenResponse) => {
+      if (tokenResponse.error) {
+        hideAuthLoading();
+        const msg = tokenResponse.error === 'access_denied'
+          ? 'Access denied — check that this origin is whitelisted in your Google Cloud Console.'
+          : ('Google error: ' + tokenResponse.error);
+        showToast(msg);
+        return;
+      }
+      // Fetch profile from Google's userinfo endpoint
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(profile => {
+        completeSignIn('google', profile.email, profile.name, profile.picture);
+      })
+      .catch(err => {
+        hideAuthLoading();
+        showToast('Could not fetch Google profile: ' + err.message);
+      });
+    },
+    error_callback: (err) => {
+      hideAuthLoading();
+      if (err.type === 'popup_closed') {
+        showToast('Sign-in popup closed');
+      } else if (err.type === 'popup_failed_to_open') {
+        showToast('Popup blocked — please allow popups for this page');
+      } else {
+        showToast('Google sign-in error: ' + (err.message || err.type));
+      }
+    },
+  });
+
+  try {
+    tokenClient.requestAccessToken();
+  } catch(e) {
+    hideAuthLoading();
+    showToast('Could not open Google sign-in: ' + e.message);
+  }
+}
+
+// ── Apple Sign-In (JS SDK popup flow) ────────
+function signInWithApple() {
+  if (!OAUTH_CFG.appleServiceId) {
+    showOAuthConfig();
+    return;
+  }
+
+  if (typeof AppleID === 'undefined') {
+    showToast('Apple SDK still loading — try again in a moment');
+    return;
+  }
+
+  showAuthLoading('Opening Apple sign-in...');
+
+  try {
+    AppleID.auth.init({
+      clientId:    OAUTH_CFG.appleServiceId,
+      scope:       'name email',
+      redirectURI: window.location.href.split('?')[0], // must match registered Return URL
+      usePopup:    true,
+    });
+
+    AppleID.auth.signIn()
+      .then(response => {
+        // Apple only sends name on the FIRST sign-in; subsequent logins omit it
+        const firstName = response.user?.name?.firstName || '';
+        const lastName  = response.user?.name?.lastName  || '';
+        const name      = [firstName, lastName].filter(Boolean).join(' ') || null;
+        const email     = response.user?.email || null;
+        // Decode the identityToken JWT to get sub (Apple user ID) for future reference
+        let appleUserId = null;
+        try {
+          const jwtPayload = JSON.parse(atob(response.authorization.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+          appleUserId = jwtPayload.sub;
+        } catch(_) {}
+        completeSignIn('apple', email, name || (appleUserId ? 'Apple User' : null), null);
+      })
+      .catch(err => {
+        hideAuthLoading();
+        if (err.error === 'popup_closed_by_user' || err.error === 'user_cancelled_authorize') {
+          showToast('Sign-in cancelled');
+        } else {
+          showToast('Apple sign-in error: ' + (err.error || JSON.stringify(err)));
+        }
+      });
+  } catch(e) {
+    hideAuthLoading();
+    showToast('Could not initialise Apple Sign In: ' + e.message);
+  }
+}
+
+// ── Email Auth ────────────────────────────────
+// Client-side validation + simulated JWT session.
+// Swap the submitEmailAuth body for a real call to your backend
+// (Firebase Auth, Supabase, your own API, etc.)
+
+function toggleEmailPanel() {
+  const panel = document.getElementById('emailPanel');
+  const isOpen = panel.classList.contains('show');
+  if (isOpen) {
+    closeEmailPanel();
+  } else {
+    panel.classList.add('show');
+    document.getElementById('emailInput').focus();
+  }
+}
+
+function closeEmailPanel() {
+  const panel = document.getElementById('emailPanel');
+  panel.classList.remove('show');
+  clearEmailError();
+}
+
+function toggleEmailMode() {
+  emailMode = emailMode === 'signin' ? 'signup' : 'signin';
+  const isSignup = emailMode === 'signup';
+  document.getElementById('emailPanelTitle').textContent  = isSignup ? 'Create Account' : 'Sign in with Email';
+  document.getElementById('emailSubmitBtn').textContent   = isSignup ? 'Create Account' : 'Sign In';
+  document.getElementById('emailModeToggle').innerHTML    = isSignup
+    ? 'Already have an account? <strong>Sign in</strong>'
+    : "Don't have an account? <strong>Sign up</strong>";
+  document.getElementById('usernameInput').style.display  = isSignup ? '' : 'none';
+  document.getElementById('passwordInput').placeholder    = isSignup ? 'Create a password (8+ chars)' : 'Password';
+}
+
+function clearEmailError() {
+  document.getElementById('emailInput').classList.remove('error');
+  document.getElementById('passwordInput').classList.remove('error');
+  document.getElementById('emailErrorMsg').classList.remove('show');
+  document.getElementById('passwordErrorMsg').classList.remove('show');
+}
+
+function showEmailError(field, msg) {
+  const inputId = field === 'email' ? 'emailInput' : 'passwordInput';
+  const errId   = field === 'email' ? 'emailErrorMsg' : 'passwordErrorMsg';
+  document.getElementById(inputId).classList.add('error');
+  document.getElementById(errId).textContent = msg;
+  document.getElementById(errId).classList.add('show');
+}
+
+function validateEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+function submitEmailAuth() {
+  clearEmailError();
+  const email    = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  const username = document.getElementById('usernameInput').value.trim();
+  const isSignup = emailMode === 'signup';
+
+  // ── Client-side validation ──
+  let valid = true;
+  if (!validateEmail(email)) {
+    showEmailError('email', 'Enter a valid email address');
+    valid = false;
+  }
+  if (password.length < (isSignup ? 8 : 1)) {
+    showEmailError('password', isSignup ? 'Password must be at least 8 characters' : 'Enter your password');
+    valid = false;
+  }
+  if (!valid) return;
+
+  // ── Disable button during request ──
+  const btn = document.getElementById('emailSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = isSignup ? 'Creating account…' : 'Signing in…';
+
+  // ─────────────────────────────────────────────────────────────────
+  // 🔌 REPLACE THIS BLOCK with a real backend call, e.g.:
+  //
+  //   Firebase:
+  //     import { signInWithEmailAndPassword } from "firebase/auth";
+  //     signInWithEmailAndPassword(auth, email, password)
+  //       .then(cred => completeSignIn('email', cred.user.email, cred.user.displayName, cred.user.photoURL))
+  //       .catch(err => showEmailError('password', err.message));
+  //
+  //   Supabase:
+  //     supabase.auth.signInWithPassword({ email, password })
+  //       .then(({ data, error }) => { if(error) showEmailError(...); else completeSignIn(...) });
+  //
+  //   Your own API:
+  //     fetch('/api/auth/signin', { method:'POST', body: JSON.stringify({email,password}) })
+  //       .then(r => r.json()).then(d => completeSignIn('email', d.email, d.name, null));
+  // ─────────────────────────────────────────────────────────────────
+
+  // Simulated async auth for prototype (replace this with real call above)
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = isSignup ? 'Create Account' : 'Sign In';
+
+    const derivedName = isSignup && username
+      ? username
+      : email.split('@')[0];
+    completeSignIn('email', email, derivedName, null);
+  }, 800);
+}
+
+// ── Sign Out ──────────────────────────────────
+function signOut() {
+  const confirmed = window.confirm('Sign out of Sidequest?');
+  if (!confirmed) return;
+
+  // Revoke Google token so auto-select doesn't fire next time
+  if (state.authProvider === 'google' && typeof google !== 'undefined' && google.accounts?.id) {
+    try {
+      google.accounts.id.disableAutoSelect();
+      if (state.authEmail) {
+        google.accounts.id.revoke(state.authEmail, () => {});
+      }
+    } catch(e) {}
+  }
+
+  // Reset auth state
+  state.isLoggedIn      = false;
+  state.authProvider    = null;
+  state.authEmail       = null;
+  state.connectedGoogle = false;
+  state.connectedApple  = false;
+
+  goScreen('auth');
+  updateAuthButtonStates();
+  showToast('Signed out. See you soon!');
+}
+
+// ── Connect additional providers from Settings ──
+function handleConnectGoogle() {
+  if (state.connectedGoogle) {
+    showToast('Google already connected ✓');
+    return;
+  }
+  if (!OAUTH_CFG.googleClientId) {
+    showToast('Set your Google Client ID first via ⚙ Configure OAuth');
+    return;
+  }
+  if (typeof google === 'undefined' || !google.accounts) {
+    showToast('Google SDK not ready — try again');
+    return;
+  }
+  showAuthLoading('Connecting Google...');
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CFG.googleClientId,
+    scope: 'openid profile email',
+    prompt: 'select_account',
+    callback: (tokenResponse) => {
+      if (tokenResponse.error) { hideAuthLoading(); showToast('Google error: ' + tokenResponse.error); return; }
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+      })
+      .then(r => r.json())
+      .then(profile => {
+        state.connectedGoogle = true;
+        if (!state.authEmail) state.authEmail = profile.email;
+        if (!state.pfpUrl && profile.picture) {
+          state.pfpUrl = profile.picture;
+          updateProfileUI();
+        }
+        hideAuthLoading();
+        updateSettingsUI();
+        showToast('Google account connected ✓');
+      })
+      .catch(() => { hideAuthLoading(); showToast('Could not fetch Google profile'); });
+    },
+    error_callback: (err) => {
+      hideAuthLoading();
+      showToast(err.type === 'popup_closed' ? 'Popup closed' : 'Google error: ' + err.type);
+    },
+  });
+  try { tokenClient.requestAccessToken(); }
+  catch(e) { hideAuthLoading(); showToast('Could not open Google: ' + e.message); }
+}
+
+function handleConnectApple() {
+  if (state.connectedApple) {
+    showToast('Apple already connected ✓');
+    return;
+  }
+  if (!OAUTH_CFG.appleServiceId) {
+    showToast('Set your Apple Services ID first via ⚙ Configure OAuth');
+    return;
+  }
+  if (typeof AppleID === 'undefined') {
+    showToast('Apple SDK not ready — try again');
+    return;
+  }
+  showAuthLoading('Connecting Apple...');
+  try {
+    AppleID.auth.init({
+      clientId: OAUTH_CFG.appleServiceId,
+      scope: 'name email',
+      redirectURI: window.location.href.split('?')[0],
+      usePopup: true,
+    });
+    AppleID.auth.signIn()
+      .then(() => {
+        state.connectedApple = true;
+        hideAuthLoading();
+        updateSettingsUI();
+        showToast('Apple account connected ✓');
+      })
+      .catch(err => {
+        hideAuthLoading();
+        showToast(err.error === 'popup_closed_by_user' ? 'Popup closed' : 'Apple error: ' + err.error);
+      });
+  } catch(e) {
+    hideAuthLoading();
+    showToast('Apple Sign In error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  SETTINGS UI
+// ═══════════════════════════════════════════════
+function updateSettingsUI() {
+  const lvl = calcLevel(state.totalXp);
+
+  // Avatar
+  const settingsAvatar = document.getElementById('settingsAvatar');
+  if (settingsAvatar) {
+    if (state.pfpUrl) {
+      settingsAvatar.style.backgroundImage = `url(${state.pfpUrl})`;
+      settingsAvatar.style.backgroundSize = 'cover';
+      settingsAvatar.style.backgroundPosition = 'center';
+      settingsAvatar.textContent = '';
+    } else {
+      settingsAvatar.style.backgroundImage = 'none';
+      settingsAvatar.textContent = state.username.substring(0,2).toUpperCase();
+    }
+  }
+
+  const settingsUsername = document.getElementById('settingsUsername');
+  if (settingsUsername) settingsUsername.textContent = state.username;
+
+  const settingsLevelSub = document.getElementById('settingsLevelSub');
+  if (settingsLevelSub) settingsLevelSub.textContent = `Lvl ${lvl.level} · ${lvl.title}`;
+
+  const signedInAsSub = document.getElementById('signedInAsSub');
+  if (signedInAsSub) {
+    signedInAsSub.textContent = state.authEmail
+      ? `Signed in as ${state.authEmail}`
+      : `Signed in as ${state.username}`;
+  }
+
+  // Connected accounts
+  const googleDot = document.getElementById('googleConnectDot');
+  const googleSub = document.getElementById('googleConnectSub');
+  if (googleDot && googleSub) {
+    if (state.connectedGoogle) {
+      googleDot.className = 'connected-dot';
+      googleSub.textContent = state.authEmail && state.authProvider === 'google'
+        ? state.authEmail : 'Connected';
+    } else {
+      googleDot.className = 'disconnected-dot';
+      googleSub.textContent = 'Tap to connect';
+    }
+  }
+  const appleDot = document.getElementById('appleConnectDot');
+  const appleSub = document.getElementById('appleConnectSub');
+  if (appleDot && appleSub) {
+    if (state.connectedApple) {
+      appleDot.className = 'connected-dot';
+      appleSub.textContent = 'Connected';
+    } else {
+      appleDot.className = 'disconnected-dot';
+      appleSub.textContent = 'Tap to connect';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  EDIT PROFILE SCREEN
+// ═══════════════════════════════════════════════
+function updateEditProfileUI() {
+  const avatar = document.getElementById('editProfileAvatar');
+  if (avatar) {
+    if (state.pfpUrl) {
+      avatar.style.backgroundImage = `url(${state.pfpUrl})`;
+      avatar.style.backgroundSize = 'cover';
+      avatar.style.backgroundPosition = 'center';
+      avatar.textContent = '';
+    } else {
+      avatar.style.backgroundImage = 'none';
+      avatar.textContent = state.username.substring(0,2).toUpperCase();
+    }
+  }
+  const uField = document.getElementById('editUsernameField');
+  if (uField) uField.value = state.username;
+  const dField = document.getElementById('editDisplayName');
+  if (dField) dField.value = state.displayName || '';
+  const bField = document.getElementById('editBio');
+  if (bField) bField.value = state.bio || '';
+}
+
+function saveProfileFromScreen() {
+  const v = document.getElementById('editUsernameField').value.trim();
+  if (!v) return showToast('Username cannot be empty');
+  state.username    = v;
+  state.displayName = document.getElementById('editDisplayName').value.trim() || v;
+  state.bio         = document.getElementById('editBio').value.trim();
+  updateProfileUI();
+  updateSettingsUI();
+  goScreen('settings');
+  showToast('Profile saved ✓');
+}
+
+function handlePfpUploadEdit(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    state.pfpUrl = e.target.result;
+    updateEditProfileUI();
+    updateProfileUI();
+    showToast('Photo updated!');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════════════════
+//  PROFILE
+// ═══════════════════════════════════════════════
+function updateProfileUI() {
+  const lvl = calcLevel(state.totalXp);
+
+  document.getElementById('displayUsername').textContent = state.username;
+  document.getElementById('displayLevel').textContent    = 'Lvl ' + lvl.level;
+  document.getElementById('displayTitle').textContent    = lvl.title;
+  document.getElementById('statTotalXp').textContent     = state.totalXp.toLocaleString();
+  document.getElementById('feed-xp-val').textContent     = state.totalXp.toLocaleString();
+  if (document.getElementById('map-xp-val'))
+    document.getElementById('map-xp-val').textContent    = state.totalXp.toLocaleString();
+
+  // XP bar
+  document.getElementById('xpCurrentText').textContent = state.totalXp.toLocaleString() + ' XP';
+  document.getElementById('xpNextText').textContent    = lvl.nextThreshold.toLocaleString() + ' XP to Lvl ' + (lvl.level + 1);
+  document.getElementById('xpProgressBar').style.width = lvl.pct + '%';
+
+  // Min XP hint
+  const minHint = `Min XP floor at your level: ${lvl.minXp} XP`;
+  document.getElementById('xpCurrentText').title = minHint;
+
+  // Creator Royalties
+  document.getElementById('royaltyVal').textContent = '+' + state.royaltyXp + ' XP';
+  const completionCount = Math.round(state.royaltyXp / 0.7 / 1.75);
+  document.getElementById('royaltySub').textContent = `from ~${completionCount} completions of your quests today`;
+
+  // Apply cosmetics
+  const avatar   = document.getElementById('displayAvatar');
+  const bg       = document.getElementById('profile-bg');
+  const statusBar= document.getElementById('profile-status');
+  const nameEl   = document.getElementById('displayUsername');
+  const titleEl  = document.getElementById('displayTitle');
+
+  avatar.className = 'profile-avatar';
+  bg.className     = 'profile-bg-layer';
+  statusBar.className = 'status-bar';
+  nameEl.classList.remove('light');
+  titleEl.classList.remove('light');
+
+  if (state.equipped.ring) {
+    const r = cosmeticsDB.find(c => c.id === state.equipped.ring);
+    if (r) avatar.classList.add(r.cssClass);
+  }
+  if (state.equipped.background) {
+    const b = cosmeticsDB.find(c => c.id === state.equipped.background);
+    if (b) {
+      bg.classList.add(b.cssClass);
+      statusBar.classList.add('dark');
+      nameEl.classList.add('light');
+      titleEl.classList.add('light');
+    }
+  }
+
+  if (state.pfpUrl) {
+    avatar.innerHTML = '';
+    avatar.style.backgroundImage = `url(${state.pfpUrl})`;
+    avatar.style.backgroundSize = 'cover';
+    avatar.style.backgroundPosition = 'center';
+  } else {
+    avatar.innerHTML = state.username.substring(0, 2).toUpperCase();
+    avatar.style.backgroundImage = 'none';
+  }
+  renderCosmeticsGrid(lvl.level);
+}
+
+function renderCosmeticsGrid(currentLevel) {
+  const container = document.getElementById('cosmetics-container');
+  container.innerHTML = '';
+  cosmeticsDB.forEach(item => {
+    const unlocked  = currentLevel >= item.reqLvl;
+    const equipped  = state.equipped[item.type] === item.id;
+    let btnClass = 'equip-btn locked';
+    let btnText  = `Lvl ${item.reqLvl}`;
+    let onClick  = '';
+    if (unlocked) {
+      btnClass = equipped ? 'equip-btn equipped' : 'equip-btn equip';
+      btnText  = equipped ? 'Equipped' : 'Equip';
+      onClick  = `equipItem('${item.type}','${equipped ? '' : item.id}')`;
+    }
+    const shapeStyle = item.type === 'ring'
+      ? `width:44px;height:44px;border-radius:50%;background:#ddd;margin:0 auto 6px;${item.preview}`
+      : `width:100%;height:36px;border-radius:8px;margin-bottom:6px;${item.preview}`;
+
+    container.innerHTML += `
+      <div class="cosmetic-card ${unlocked ? '' : 'locked'}">
+        <div style="${shapeStyle}"></div>
+        <div class="cosmetic-name">${item.name}</div>
+        <div class="cosmetic-type">${item.type}</div>
+        <button class="${btnClass}" onclick="${onClick}">${btnText}</button>
+      </div>`;
+  });
+}
+
+function equipItem(type, id) {
+  state.equipped[type] = id || null;
+  updateProfileUI();
+  showToast(id ? '✓ Cosmetic equipped!' : 'Cosmetic removed');
+}
+
+function switchProfileTab(tab) {
+  ['quests','cosmetics'].forEach(t => {
+    document.getElementById('tab-'+t+'-btn').classList.toggle('active', t===tab);
+    document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
+  });
+}
+// ═══════════════════════════════════════════════
+//  MOD REVIEW
+// ═══════════════════════════════════════════════
+function castVote(cardId, type) {
+  const voteRow  = document.getElementById('vote-row-'+cardId);
+  const card     = document.getElementById('review-card-'+cardId);
+  const statusEl = card.querySelector('.review-status');
+
+  const configs = {
+    approved: { statusClass:'status-approved', statusText:'Approved ✓', msg:'Approved — +15 XP earned ✓',          color:'#166534' },
+    more:     { statusClass:'status-moreXP',   statusText:'More XP ★',  msg:'Voted higher XP — +15 XP earned',     color:'#92400e' },
+    reject:   { statusClass:'status-rejected', statusText:'Rejected ✗', msg:'Quest rejected — +15 XP still earned', color:'#991b1b' },
+  };
+  const cfg = configs[type];
+  statusEl.className = 'review-status ' + cfg.statusClass;
+  statusEl.textContent = cfg.statusText;
+  voteRow.innerHTML = `<div style="padding:4px 0;font-size:11px;color:${cfg.color};font-weight:600;">${cfg.msg}</div>`;
+  showToast('+15 XP earned for reviewing!');
+}
+
+// ═══════════════════════════════════════════════
+//  UTILS / DEBUG
+// ═══════════════════════════════════════════════
+function toggleChip(el) {
+  el.classList.toggle('on');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 2200);
+}
+
+function toggleMod(btn) {
+  state.isMod = !state.isMod;
+  btn.classList.toggle('active', state.isMod);
+  renderNavBars(document.querySelector('.screen.active').id.replace('screen-',''));
+  showToast(state.isMod ? '🛡 Moderator view: ON' : 'Moderator view: OFF');
+  if (!state.isMod && document.getElementById('screen-review').classList.contains('active')) {
+    goScreen('feed');
+  }
+}
+
+function addMockXP() {
+  state.totalXp += 500;
+  updateProfileUI();
+  showToast('⚡ +500 XP added!');
+}
+
+function addRoyaltyXP() {
+  state.royaltyXp += Math.floor(Math.random() * 30 + 10);
+  updateProfileUI();
+  showToast('💰 Creator royalties updated!');
+}
+
+function resetXP() {
+  state.totalXp = 0; state.royaltyXp = 0;
+  updateProfileUI();
+  showToast('XP reset to 0');
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+function init() {
+  renderNavBars('feed');
+  updateProfileUI();
+  updateAuthButtonStates(); // hide Google/Apple buttons if no credentials saved
+  goScreen('auth');
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
