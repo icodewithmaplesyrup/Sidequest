@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="./api.js" defer></script>
 <!-- Google Identity Services -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Apple Sign-In -->
@@ -1320,7 +1321,7 @@
         </div>
         <div class="form-group">
           <span class="form-label">Description</span>
-          <textarea class="form-input" rows="2" placeholder="Describe what you actually did..."></textarea>
+          <textarea class="form-input" rows="2" id="questDescription" placeholder="Describe what you actually did..."></textarea>
         </div>
         <div class="form-group">
           <span class="form-label">Difficulty &amp; Base XP</span>
@@ -1353,7 +1354,7 @@
           </div>
           <div class="info-note" style="margin-top:7px;">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <p>Simultaneous dual-camera capture requires a native iOS (iPhone XS+) or Android app — not supported in web browsers.</p>
+            <p>Recording metadata and review queue status sync with the API after each capture.</p>
           </div>
         </div>
         <button class="primary-btn" onclick="submitQuest()">Submit for Review</button>
@@ -1496,73 +1497,7 @@
         <p>Moderator view. Vote on XP awards — each vote earns you <strong>+15 XP</strong>. Target: &lt;10 sec/review.</p>
       </div>
 
-      <!-- Pending card 1 -->
-      <div class="review-card" id="review-card-1">
-        <div class="review-header">
-          <div>
-            <div class="review-username">mrod</div>
-            <div class="review-meta-sub">Chicago, IL · 2h ago · Hard</div>
-          </div>
-          <span class="review-status status-pending">Pending</span>
-        </div>
-        <div class="review-body">
-          <div class="review-vid"><div class="rv-half rv-front"></div><div class="rv-half rv-back"></div></div>
-          <div class="review-text">
-            <div class="review-title">Walked through the mall in full knight armor</div>
-            <div class="review-detail">Proposed: <span class="xp-proposed">500 XP</span></div>
-          </div>
-        </div>
-        <div class="vote-row" id="vote-row-1">
-          <button class="vote-btn vote-approve" onclick="castVote(1,'approved')">Approve ✓</button>
-          <button class="vote-btn vote-more-xp" onclick="castVote(1,'more')">More XP ↑</button>
-          <button class="vote-btn vote-reject"  onclick="castVote(1,'reject')">Reject ✗</button>
-        </div>
-      </div>
-
-      <!-- Pending card 2 -->
-      <div class="review-card" id="review-card-2">
-        <div class="review-header">
-          <div>
-            <div class="review-username">jwillis</div>
-            <div class="review-meta-sub">Austin, TX · 5h ago · Medium</div>
-          </div>
-          <span class="review-status status-approved" id="rc2-status">Approved ✓</span>
-        </div>
-        <div class="review-body">
-          <div class="review-vid"><div class="rv-half rv-front" style="background:#102010;"></div><div class="rv-half rv-back" style="background:#101020;"></div></div>
-          <div class="review-text">
-            <div class="review-title">Asked a stranger to narrate my grocery trip</div>
-            <div class="review-detail">Final: <span class="xp-proposed">200 XP</span></div>
-          </div>
-        </div>
-        <div class="review-result">
-          <svg viewBox="0 0 24 24" stroke="#166534" fill="none" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          12 reviewers approved · avg 195 XP awarded
-        </div>
-      </div>
-
-      <!-- Pending card 3 -->
-      <div class="review-card" id="review-card-3">
-        <div class="review-header">
-          <div>
-            <div class="review-username">priya_d</div>
-            <div class="review-meta-sub">NYC · 8h ago · Easy</div>
-          </div>
-          <span class="review-status status-pending">Pending</span>
-        </div>
-        <div class="review-body">
-          <div class="review-vid"><div class="rv-half rv-front" style="background:#141820;"></div><div class="rv-half rv-back" style="background:#201820;"></div></div>
-          <div class="review-text">
-            <div class="review-title">Complimented every person I passed for 5 minutes</div>
-            <div class="review-detail">Proposed: <span class="xp-proposed">100 XP</span></div>
-          </div>
-        </div>
-        <div class="vote-row" id="vote-row-3">
-          <button class="vote-btn vote-approve" onclick="castVote(3,'approved')">Approve ✓</button>
-          <button class="vote-btn vote-more-xp" onclick="castVote(3,'more')">More XP ↑</button>
-          <button class="vote-btn vote-reject"  onclick="castVote(3,'reject')">Reject ✗</button>
-        </div>
-      </div>
+      <div id="reviewQueueList"></div>
 
     </div>
     <div class="nav-bar" id="nav-review"></div>
@@ -1974,19 +1909,45 @@ const cosmeticsDB = [
   { id:'bg-midnight',  type:'background', name:'Midnight',       reqLvl:15, cssClass:'bg-midnight', preview:'background:linear-gradient(135deg,#0f0c29,#302b63);' },
 ];
 
-// ─── MAP QUEST DATA ──────────────────────────
-const mapQuests = [
-  { id:1, title:'Walked through mall in full knight armor',       lat:41.8827, lng:-87.6233, xp:500,  tier:'hard',   completions:94, trailblazer:true  },
-  { id:2, title:'Asked stranger to narrate grocery trip',         lat:30.2672, lng:-97.7431, xp:250,  tier:'medium', completions:312, trailblazer:false },
-  { id:3, title:'Ordered food in a pirate accent',                lat:34.0522, lng:-118.2437,xp:250,  tier:'medium', completions:201, trailblazer:false },
-  { id:4, title:'Paid entirely in pennies at checkout',           lat:40.7128, lng:-74.0060, xp:100,  tier:'easy',   completions:528, trailblazer:false },
-  { id:5, title:'Narrated own commute in sports-caster voice',    lat:37.7749, lng:-122.4194,xp:100,  tier:'easy',   completions:187, trailblazer:false },
-  { id:6, title:'Convinced 3 strangers to high-five simultaneously', lat:51.5074, lng:-0.1278, xp:1000, tier:'legend', completions:22, trailblazer:true  },
-  { id:7, title:'Wore a cape to the gym',                         lat:48.8566, lng:2.3522,   xp:500,  tier:'hard',   completions:63, trailblazer:false },
-  { id:8, title:'Complimented every passerby for 5 minutes',      lat:35.6762, lng:139.6503, xp:100,  tier:'easy',   completions:140, trailblazer:false },
-  { id:9, title:'Had full conversation only using questions',      lat:52.5200, lng:13.4050,  xp:250,  tier:'medium', completions:89,  trailblazer:false },
-  { id:10,title:'Did entire shopping trip in slow motion',         lat:-33.8688,lng:151.2093, xp:500,  tier:'hard',   completions:44,  trailblazer:true  },
-];
+// ─── API-HYDRATED DATA ──────────────────────────
+let mapQuests = [];
+let reviewQueueData = [];
+let recordedClip = null;
+
+const SidequestApi = window.SidequestAPI || {
+  async authEmail(payload) {
+    const res = await fetch('/.netlify/functions/api/auth/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+  async postQuest(payload) {
+    const res = await fetch('/.netlify/functions/api/quests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+  async getMapQuests() {
+    const res = await fetch('/.netlify/functions/api/quests?scope=map');
+    return res.json();
+  },
+  async getReviewQueue() {
+    const res = await fetch('/.netlify/functions/api/reviews/pending');
+    return res.json();
+  },
+  async voteReview(reviewId, voteType) {
+    const res = await fetch(`/.netlify/functions/api/reviews/${reviewId}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voteType }),
+    });
+    return res.json();
+  },
+};
 
 // ─── LEVEL SYSTEM ────────────────────────────
 // XP floor per level band (Phase 2 spec)
@@ -2052,7 +2013,11 @@ function goScreen(name) {
   el.classList.add('active');
   if (NAV_SCREENS.has(name)) renderNavBars(name);
   if (name !== 'camera' && recording) stopRecord();
-  if (name === 'map' && !mapInitialized) initMap();
+  if (name === 'map') {
+    if (!mapInitialized) initMap();
+    refreshMapQuests();
+  }
+  if (name === 'review') refreshReviewQueue();
   if (name === 'profile') updateProfileUI();
   if (name === 'settings') updateSettingsUI();
   if (name === 'edit-profile') updateEditProfileUI();
@@ -2064,6 +2029,47 @@ function goScreen(name) {
 
 // Store marker references so we can rescale them on zoom
 const mapMarkers = [];
+function clearMapMarkers() {
+  mapMarkers.forEach(({ marker }) => marker.remove());
+  mapMarkers.length = 0;
+}
+
+function renderMapMarkers() {
+  if (!leafletMap) return;
+  clearMapMarkers();
+  const initialScale = getPinZoomScale(leafletMap.getZoom());
+  mapQuests.forEach(q => {
+    const safeTitle = q.title.replace(/'/g, "\\'");
+    const popup = L.popup({ closeButton: true, maxWidth: 210, minWidth: 200 }).setContent(`
+      <div class="map-popup">
+        <div class="map-popup-title">${q.title}</div>
+        <div class="map-popup-row">
+          <span class="map-popup-xp">${q.xp} XP</span>
+          <span class="map-popup-completions">🏁 ${q.completions} completions</span>
+        </div>
+        ${q.trailblazer ? '<div style="font-size:10px;color:#7C3AED;margin-bottom:6px;font-weight:700;">👑 Trailblazer available</div>' : ''}
+        <button class="map-popup-do" onclick="doQuestFromMap('${safeTitle}')">DO THIS QUEST →</button>
+      </div>`);
+
+    const marker = L.marker([q.lat, q.lng], { icon: buildPinIcon(q, initialScale) })
+      .addTo(leafletMap)
+      .bindPopup(popup);
+
+    mapMarkers.push({ marker, quest: q });
+  });
+}
+
+async function refreshMapQuests() {
+  try {
+    const data = await SidequestApi.getMapQuests();
+    mapQuests = data.quests || [];
+    renderMapMarkers();
+    updateMapPinSizes();
+  } catch (err) {
+    console.error(err);
+    showToast('Could not load map quests');
+  }
+}
 
 // ── Pin sizing ──────────────────────────────────
 // Base size (px at zoom 10) is computed from completions + xp using
@@ -2164,30 +2170,8 @@ function _buildMap() {
 
   L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(leafletMap);
 
-  // We still calculate initial scale for pins, but remember 
-  // updateMapPinSizes() will run again as soon as .locate() finishes.
-  const initialScale = getPinZoomScale(leafletMap.getZoom());
-
-  mapQuests.forEach(q => {
-    const safeTitle = q.title.replace(/'/g, "\\'");
-    const popup = L.popup({ closeButton: true, maxWidth: 210, minWidth: 200 }).setContent(`
-      <div class="map-popup">
-        <div class="map-popup-title">${q.title}</div>
-        <div class="map-popup-row">
-          <span class="map-popup-xp">${q.xp} XP</span>
-          <span class="map-popup-completions">🏁 ${q.completions} completions</span>
-        </div>
-        ${q.trailblazer ? '<div style="font-size:10px;color:#7C3AED;margin-bottom:6px;font-weight:700;">👑 Trailblazer available</div>' : ''}
-        <button class="map-popup-do" onclick="doQuestFromMap('${safeTitle}')">DO THIS QUEST →</button>
-      </div>`
-    );
-
-    const marker = L.marker([q.lat, q.lng], { icon: buildPinIcon(q, initialScale) })
-      .addTo(leafletMap)
-      .bindPopup(popup);
-
-    mapMarkers.push({ marker, quest: q });
-  });
+  renderMapMarkers();
+  refreshMapQuests();
 
   // Keep pins at a consistent screen size regardless of zoom level
   leafletMap.on('zoomend', updateMapPinSizes);
@@ -2216,36 +2200,46 @@ function selectDiff(el) {
 // --- QUEST LOGIC ---
 function submitQuest() {
   const title = document.getElementById('questTitle').value.trim();
-  const desc = document.querySelector('textarea.form-input').value.trim();
+  const desc = document.getElementById('questDescription').value.trim();
   
   if (!title) {
     showToast('Add a quest title first!');
     return;
   }
+  if (!recordedClip?.clipId) {
+    showToast('Record a clip before posting');
+    return;
+  }
 
-  showToast('Connecting to server...');
-
-  // Using the FULL path to guarantee it hits your function
-  fetch('/.netlify/functions/api/quests', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      title: title, 
-      description: desc,
-      xp_base: 250 
-    })
+  showToast('Posting quest...');
+  SidequestApi.postQuest({
+    title,
+    description: desc,
+    xp_base: selectedXp,
+    username: state.username,
+    recording: recordedClip,
+    location: {
+      label: 'Manhattan Beach, CA',
+      lat: 33.8847,
+      lng: -118.4109,
+    },
   })
-  .then(res => res.json())
   .then(data => {
     if (data.error) {
       showToast('Error: ' + data.error);
     } else {
-      showToast('Quest live! ID: ' + data.id.substring(0,5));
-      setTimeout(() => goScreen('feed'), 1000);
+      showToast(`Queued for review · ${data.id}`);
+      document.getElementById('questTitle').value = '';
+      document.getElementById('questDescription').value = '';
+      recordedClip = null;
+      resetRecordingUI();
+      refreshMapQuests();
+      refreshReviewQueue();
+      setTimeout(() => goScreen('feed'), 900);
     }
   })
   .catch(err => {
-    showToast('Submission failed. Check internet.');
+    showToast('Submission failed. Try again.');
     console.error(err);
   });
 }
@@ -2285,18 +2279,38 @@ function stopRecord(done) {
   arc.style.strokeDashoffset = '163.4';
   bar.style.width = '0%';
   if (done) {
-    showToast('Video captured! 10s dual-cam clip saved');
+    recordedClip = {
+      clipId: `clip_${Date.now()}`,
+      durationSec: 10,
+      capturedAt: new Date().toISOString(),
+      dualCam: true,
+    };
+    showToast('Video captured and attached');
     setTimeout(() => {
       goScreen('submit');
-      const zone = document.getElementById('recordZone');
-      const icon = document.getElementById('recordIcon');
-      zone.classList.add('recorded');
-      document.getElementById('recordText').textContent = 'Video recorded — tap to re-record';
-      document.getElementById('recordSub').textContent = 'Front + back · 10 seconds';
-      icon.classList.add('done');
-      icon.querySelector('svg').innerHTML = '<polyline points="20 6 9 17 4 12" stroke-width="2.5"/>';
+      applyRecordingUI();
     }, 600);
   }
+}
+
+function applyRecordingUI() {
+  const zone = document.getElementById('recordZone');
+  const icon = document.getElementById('recordIcon');
+  zone.classList.add('recorded');
+  document.getElementById('recordText').textContent = 'Clip attached — tap to re-record';
+  document.getElementById('recordSub').textContent = `Clip ID: ${recordedClip.clipId.slice(-8)} · 10s dual cam`;
+  icon.classList.add('done');
+  icon.querySelector('svg').innerHTML = '<polyline points="20 6 9 17 4 12" stroke-width="2.5"/>';
+}
+
+function resetRecordingUI() {
+  const zone = document.getElementById('recordZone');
+  const icon = document.getElementById('recordIcon');
+  zone.classList.remove('recorded');
+  icon.classList.remove('done');
+  icon.querySelector('svg').innerHTML = '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>';
+  document.getElementById('recordText').textContent = 'Tap to record your quest';
+  document.getElementById('recordSub').textContent = 'Front + back cameras · 10 seconds';
 }
 
 // ═══════════════════════════════════════════════
@@ -2504,9 +2518,7 @@ function signInWithApple() {
 }
 
 // ── Email Auth ────────────────────────────────
-// Client-side validation + simulated JWT session.
-// Swap the submitEmailAuth body for a real call to your backend
-// (Firebase Auth, Supabase, your own API, etc.)
+// Client-side validation + API-backed session.
 
 function toggleEmailPanel() {
   const panel = document.getElementById('emailPanel');
@@ -2573,14 +2585,7 @@ function submitEmailAuth() {
   btn.textContent = isSignup ? 'Creating account...' : 'Signing in...';
   // --- End of Important UI Code ---
 
-  // Make the real API call to the Netlify Function
-  // Note: Ensure this path matches your api.js route exactly
-  fetch('/.netlify/functions/api/auth/email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: email, password: pass, username: user })
-  })
-  .then(res => res.json())
+  SidequestApi.authEmail({ email: email, password: pass, username: user })
   .then(data => {
     btn.disabled = false;
     btn.textContent = isSignup ? 'Create Account' : 'Sign In';
@@ -2931,21 +2936,74 @@ function switchProfileTab(tab) {
 // ═══════════════════════════════════════════════
 //  MOD REVIEW
 // ═══════════════════════════════════════════════
-function castVote(cardId, type) {
-  const voteRow  = document.getElementById('vote-row-'+cardId);
-  const card     = document.getElementById('review-card-'+cardId);
-  const statusEl = card.querySelector('.review-status');
+function statusLabel(status) {
+  if (status === 'approved') return { css: 'status-approved', text: 'Approved ✓' };
+  if (status === 'more_xp') return { css: 'status-moreXP', text: 'More XP ★' };
+  if (status === 'rejected') return { css: 'status-rejected', text: 'Rejected ✗' };
+  return { css: 'status-pending', text: 'Pending' };
+}
 
-  const configs = {
-    approved: { statusClass:'status-approved', statusText:'Approved ✓', msg:'Approved — +15 XP earned ✓',          color:'#166534' },
-    more:     { statusClass:'status-moreXP',   statusText:'More XP ★',  msg:'Voted higher XP — +15 XP earned',     color:'#92400e' },
-    reject:   { statusClass:'status-rejected', statusText:'Rejected ✗', msg:'Quest rejected — +15 XP still earned', color:'#991b1b' },
-  };
-  const cfg = configs[type];
-  statusEl.className = 'review-status ' + cfg.statusClass;
-  statusEl.textContent = cfg.statusText;
-  voteRow.innerHTML = `<div style="padding:4px 0;font-size:11px;color:${cfg.color};font-weight:600;">${cfg.msg}</div>`;
-  showToast('+15 XP earned for reviewing!');
+function renderReviewQueue() {
+  const list = document.getElementById('reviewQueueList');
+  if (!list) return;
+  if (!reviewQueueData.length) {
+    list.innerHTML = '<div class="review-card"><div class="review-title">No pending reviews right now.</div></div>';
+    return;
+  }
+  list.innerHTML = reviewQueueData.map(item => {
+    const badge = statusLabel(item.status);
+    return `
+      <div class="review-card" id="review-card-${item.id}">
+        <div class="review-header">
+          <div>
+            <div class="review-username">${item.username}</div>
+            <div class="review-meta-sub">${item.locationLabel} · ${item.ageLabel}</div>
+          </div>
+          <span class="review-status ${badge.css}">${badge.text}</span>
+        </div>
+        <div class="review-body">
+          <div class="review-vid"><div class="rv-half rv-front"></div><div class="rv-half rv-back"></div></div>
+          <div class="review-text">
+            <div class="review-title">${item.title}</div>
+            <div class="review-detail">Proposed: <span class="xp-proposed">${item.proposedXp} XP</span></div>
+          </div>
+        </div>
+        ${item.status === 'pending' ? `
+          <div class="vote-row">
+            <button class="vote-btn vote-approve" onclick="castVote('${item.id}','approved')">Approve ✓</button>
+            <button class="vote-btn vote-more-xp" onclick="castVote('${item.id}','more')">More XP ↑</button>
+            <button class="vote-btn vote-reject"  onclick="castVote('${item.id}','reject')">Reject ✗</button>
+          </div>` : `
+          <div class="review-result">${item.voteSummary || 'Vote recorded.'}</div>`}
+      </div>`;
+  }).join('');
+}
+
+async function refreshReviewQueue() {
+  try {
+    const data = await SidequestApi.getReviewQueue();
+    reviewQueueData = data.reviews || [];
+    renderReviewQueue();
+  } catch (err) {
+    console.error(err);
+    showToast('Could not load review queue');
+  }
+}
+
+function castVote(reviewId, type) {
+  SidequestApi.voteReview(reviewId, type)
+    .then((data) => {
+      const ix = reviewQueueData.findIndex((r) => r.id === reviewId);
+      if (ix >= 0) reviewQueueData[ix] = data.review;
+      renderReviewQueue();
+      state.totalXp += Number(data.awardedXp || 0);
+      updateProfileUI();
+      showToast(`+${data.awardedXp || 15} XP earned for reviewing!`);
+    })
+    .catch((err) => {
+      console.error(err);
+      showToast('Vote failed');
+    });
 }
 
 // ═══════════════════════════════════════════════
@@ -2998,6 +3056,9 @@ function init() {
   renderNavBars('feed');
   updateProfileUI();
   updateAuthButtonStates(); // hide Google/Apple buttons if no credentials saved
+  resetRecordingUI();
+  refreshMapQuests();
+  refreshReviewQueue();
   goScreen('auth');
 }
 
